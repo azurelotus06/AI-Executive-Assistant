@@ -1,0 +1,7 @@
+version: "2"
+authtoken: 2nKqFqQzPGPqVxZvDGxH8Ej8Wnr_5zKNnPFBqoKKqBxqBxqBx
+tunnels:
+  backend:
+    proto: http
+    addr: 8000
+    inspect: false
