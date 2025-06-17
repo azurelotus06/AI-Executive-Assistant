@@ -9,32 +9,42 @@
     "@testing-library/user-event": "^14.5.2",
     "@types/jest": "^29.5.12",
     "@types/node": "^20.11.24",
-    "@types/react": "^18.2.61",
-    "@types/react-dom": "^18.2.19",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
     "@types/uuid": "^9.0.8",
+    "assert": "^2.1.0",
     "autoprefixer": "^10.4.17",
     "axios": "^1.6.7",
+    "browserify-zlib": "^0.2.0",
+    "buffer": "^6.0.3",
+    "crypto-browserify": "^3.12.1",
     "date-fns": "^3.3.1",
-    "framer-motion": "^11.0.5",
-    "lucide-react": "^0.515.0",
+    "framer-motion": "^12.18.1",
+    "https-browserify": "^1.0.0",
+    "lucide-react": "^0.516.0",
     "postcss": "^8.4.35",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "react-hot-toast": "^2.4.1",
-    "react-icons": "^5.0.1",
+    "process": "^0.11.10",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "react-hot-toast": "^2.5.2",
+    "react-icons": "^4.12.0",
     "react-scripts": "5.0.1",
     "recharts": "^2.12.0",
+    "stream-browserify": "^3.0.0",
+    "stream-http": "^3.2.0",
     "tailwindcss": "^3.4.1",
-    "typescript": "^5.3.3",
+    "typescript": "4.9.5",
+    "url": "^0.11.4",
     "use-sound": "^4.0.1",
+    "util": "^0.12.5",
     "uuid": "^9.0.1",
     "wavesurfer.js": "^7.6.2",
     "web-vitals": "^3.5.2"
   },
   "scripts": {
-    "start": "react-scripts start",
-    "build": "react-scripts build",
-    "test": "react-scripts test",
+    "start": "react-app-rewired start",
+    "build": "react-app-rewired build",
+    "test": "react-app-rewired test",
     "eject": "react-scripts eject"
   },
   "eslintConfig": {
@@ -55,5 +65,8 @@
       "last 1 safari version"
     ]
   },
-  "proxy": "http://localhost:8000"
+  "proxy": "https://026f-4-227-169-224.ngrok-free.app",
+  "devDependencies": {
+    "react-app-rewired": "^2.2.1"
+  }
 }

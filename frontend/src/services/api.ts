@@ -1,7 +1,7 @@
 import axios from 'axios';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
-const WS_BASE_URL = process.env.REACT_APP_WS_URL || 'ws://localhost:8000';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://bold-chow-trivially.ngrok-free.app';
+const WS_BASE_URL = process.env.REACT_APP_WS_URL || 'ws://bold-chow-trivially.ngrok-free.app';
 
 // Create axios instance with default config
 const api = axios.create({

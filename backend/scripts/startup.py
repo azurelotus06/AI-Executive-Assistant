@@ -72,13 +72,13 @@ def run_migrations():
         migration_files = list(versions_dir.glob("*.py"))
         
         if not migration_files:
-            # Create initial migration
+            # Create initial migration using virtual environment's Python
             print("Creating initial migration...")
-            subprocess.run(["alembic", "revision", "--autogenerate", "-m", "Initial migration"], check=True)
+            subprocess.run([".venv/Scripts/python", "-m", "alembic", "revision", "--autogenerate", "-m", "Initial migration"], check=True)
         
-        # Run migrations
+        # Run migrations using virtual environment's Python
         print("Running migrations...")
-        subprocess.run(["alembic", "upgrade", "head"], check=True)
+        subprocess.run([".venv/Scripts/python", "-m", "alembic", "upgrade", "head"], check=True)
         print("Migrations completed successfully")
         
     except subprocess.CalledProcessError as e:

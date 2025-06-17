@@ -1,5 +1,5 @@
 import React from 'react';
-import { FiCheck, FiX, FiCpu, FiMic, FiVolume2, FiRefreshCw } from 'react-icons/fi';
+import { Check, X, Cpu, Mic, Volume2, RefreshCw } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 interface SystemStatus {
@@ -33,9 +33,9 @@ export const StatusPanel: React.FC<StatusPanelProps> = ({
 }) => {
   const getStatusIcon = (healthy: boolean) => {
     return healthy ? (
-      <FiCheck className="w-4 h-4 text-green-500" />
+      <Check className="w-4 h-4 text-green-500" />
     ) : (
-      <FiX className="w-4 h-4 text-red-500" />
+      <X className="w-4 h-4 text-red-500" />
     );
   };
 
@@ -74,7 +74,7 @@ export const StatusPanel: React.FC<StatusPanelProps> = ({
           {/* Audio Processor Status */}
           <div className="mb-4">
             <div className="flex items-center space-x-2 mb-2">
-              <FiMic className="w-5 h-5 text-primary-400" />
+              <Mic className="w-5 h-5 text-primary-400" />
               <span className="text-sm font-medium text-gray-300">Audio Processor</span>
               {getStatusIcon(systemStatus.audio_processor.healthy)}
             </div>
@@ -101,7 +101,7 @@ export const StatusPanel: React.FC<StatusPanelProps> = ({
           {/* AI Service Status */}
           <div className="mb-4">
             <div className="flex items-center space-x-2 mb-2">
-              <FiCpu className="w-5 h-5 text-primary-400" />
+              <Cpu className="w-5 h-5 text-primary-400" />
               <span className="text-sm font-medium text-gray-300">AI Service</span>
               {getStatusIcon(systemStatus.ai_service.healthy)}
             </div>
@@ -130,7 +130,7 @@ export const StatusPanel: React.FC<StatusPanelProps> = ({
           {/* TTS Service Status */}
           <div className="mb-4">
             <div className="flex items-center space-x-2 mb-2">
-              <FiVolume2 className="w-5 h-5 text-primary-400" />
+              <Volume2 className="w-5 h-5 text-primary-400" />
               <span className="text-sm font-medium text-gray-300">TTS Service</span>
               {getStatusIcon(systemStatus.tts_service.healthy)}
             </div>
@@ -159,7 +159,7 @@ export const StatusPanel: React.FC<StatusPanelProps> = ({
             transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
             className="inline-block"
           >
-            <FiRefreshCw className="w-6 h-6 text-gray-500" />
+            <RefreshCw className="w-6 h-6 text-gray-500" />
           </motion.div>
           <p className="text-sm text-gray-500 mt-2">Loading system status...</p>
         </div>
@@ -167,7 +167,7 @@ export const StatusPanel: React.FC<StatusPanelProps> = ({
 
       {connectionStatus === 'disconnected' && (
         <div className="text-center py-8">
-          <FiX className="w-8 h-8 text-red-500 mx-auto mb-2" />
+          <X className="w-8 h-8 text-red-500 mx-auto mb-2" />
           <p className="text-sm text-gray-500">System disconnected</p>
         </div>
       )}

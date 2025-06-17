@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { format } from 'date-fns';
-import { FiUser, FiCpu, FiMic } from 'react-icons/fi';
+import { User, Cpu, Mic } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface Message {
@@ -32,11 +32,11 @@ export const ConversationPanel: React.FC<ConversationPanelProps> = ({
   const getIcon = (type: string) => {
     switch (type) {
       case 'ai':
-        return <FiCpu className="w-5 h-5" />;
+        return <Cpu className="w-5 h-5" />;
       case 'transcript':
-        return <FiMic className="w-4 h-4" />;
+        return <Mic className="w-4 h-4" />;
       default:
-        return <FiUser className="w-5 h-5" />;
+        return <User className="w-5 h-5" />;
     }
   };
 
@@ -134,7 +134,7 @@ export const ConversationPanel: React.FC<ConversationPanelProps> = ({
 
         {messages.length === 0 && !isLoading && (
           <div className="flex flex-col items-center justify-center h-full text-center">
-            <FiMic className="w-12 h-12 text-gray-600 mb-3" />
+            <Mic className="w-12 h-12 text-gray-600 mb-3" />
             <p className="text-gray-500">No conversation yet</p>
             <p className="text-sm text-gray-600 mt-1">
               Start speaking to see the transcript

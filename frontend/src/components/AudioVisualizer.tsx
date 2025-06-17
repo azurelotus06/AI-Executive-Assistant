@@ -11,7 +11,7 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
   isActive,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const animationRef = useRef<number>();
+  const animationRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!canvasRef.current) return;
@@ -48,14 +48,14 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
         }
       }
 
-      animationRef.current = requestAnimationFrame(draw);
+      animationRef.current = window.requestAnimationFrame(draw);
     };
 
     draw();
 
     return () => {
       if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
+        window.cancelAnimationFrame(animationRef.current);
       }
     };
   }, [audioLevel, isActive]);

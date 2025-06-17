@@ -1,5 +1,5 @@
 import React from 'react';
-import { FiMic, FiMicOff, FiPower, FiSettings, FiActivity } from 'react-icons/fi';
+import { Activity, Mic, MicOff, Power, Settings } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 interface HeaderProps {
@@ -25,7 +25,7 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="flex items-center space-x-4">
           <div className="flex items-center space-x-3">
             <div className="relative">
-              <FiActivity className="w-8 h-8 text-primary-500" />
+              <Activity className="w-8 h-8 text-primary-500" />
               {isConnected && (
                 <motion.div
                   className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full"
@@ -67,7 +67,7 @@ export const Header: React.FC<HeaderProps> = ({
             } disabled:opacity-50 disabled:cursor-not-allowed`}
             data-tooltip={isMuted ? 'Unmute' : 'Mute'}
           >
-            {isMuted ? <FiMicOff className="w-5 h-5" /> : <FiMic className="w-5 h-5" />}
+            {isMuted ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
           </button>
 
           {/* Settings Button */}
@@ -76,7 +76,7 @@ export const Header: React.FC<HeaderProps> = ({
             className="p-3 rounded-lg bg-gray-800 text-gray-300 hover:bg-gray-700 transition-all"
             data-tooltip="Settings"
           >
-            <FiSettings className="w-5 h-5" />
+            <Settings className="w-5 h-5" />
           </button>
 
           {/* Power Button */}
@@ -89,7 +89,7 @@ export const Header: React.FC<HeaderProps> = ({
             }`}
             data-tooltip={isConnected ? 'Disconnect' : 'Connect'}
           >
-            <FiPower className="w-5 h-5" />
+            <Power className="w-5 h-5" />
           </button>
         </div>
       </div>

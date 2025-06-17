@@ -23,7 +23,7 @@ This is the frontend application for the Real-Time AI Executive Assistant for Zo
 ## 📋 Prerequisites
 
 - Node.js 16+ and npm
-- Backend server running on `http://localhost:8000`
+- Backend server running on `https://bold-chow-trivially.ngrok-free.app`
 
 ## 🔧 Installation
 
@@ -146,8 +146,8 @@ npm test -- --watch
 ### API Endpoints
 Modify `src/services/api.ts` to change backend URLs:
 ```typescript
-const API_BASE_URL = 'http://localhost:8000';
-const WS_URL = 'ws://localhost:8000/ws';
+const API_BASE_URL = 'https://bold-chow-trivially.ngrok-free.app';
+const WS_URL = 'ws://bold-chow-trivially.ngrok-free.app/ws';
 ```
 
 ### Audio Settings

@@ -51,6 +51,22 @@ class MeetingBaaSService:
                     "status": "error",
                     "message": "DEVTUNNEL_HOST not configured. Please set up devtunnel."
                 }
+
+            # Clean and validate meeting URL
+            meeting_url = meeting_url.strip()
+            if "http" not in meeting_url.lower():
+                meeting_url = f"https://{meeting_url}"
+            
+            # Remove any duplicate protocol prefixes
+            if meeting_url.count("http") > 1:
+                meeting_url = meeting_url[meeting_url.rfind("http"):]
+            
+            # Basic validation
+            if "zoom.us/j/" not in meeting_url:
+                return {
+                    "status": "error",
+                    "message": "Invalid Zoom meeting URL format"
+                }
             
             # Configure webhook and WebSocket URLs
             webhook_url = f"https://{self.webhook_host}/api/meeting/webhook"

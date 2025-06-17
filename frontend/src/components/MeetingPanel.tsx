@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Mic, MicOff, Phone, PhoneOff, Users, AlertCircle, CheckCircle } from 'lucide-react';
+import { Phone, PhoneOff, Users, AlertCircle, CheckCircle } from 'lucide-react';
 import { joinMeeting, leaveMeeting, getMeetingStatus } from '../services/api';
 
 interface MeetingPanelProps {
@@ -43,7 +43,7 @@ export const MeetingPanel: React.FC<MeetingPanelProps> = ({ onStatusChange }) =>
               setStatusMessage('Meeting completed successfully!');
               break;
             default:
-              if (status.status.startsWith('failed_')) {
+              if (status?.status && status.status.startsWith('failed_')) {
                 setStatusMessage(`Failed: ${status.status.replace('failed_', '').replace(/_/g, ' ')}`);
               }
           }
@@ -106,14 +106,14 @@ export const MeetingPanel: React.FC<MeetingPanelProps> = ({ onStatusChange }) =>
       case 'completed':
         return <CheckCircle className="w-5 h-5 text-blue-500" />;
       default:
-        if (meetingStatus.startsWith('failed_')) {
+        if (meetingStatus && meetingStatus.startsWith('failed_')) {
           return <AlertCircle className="w-5 h-5 text-red-500" />;
         }
         return <Users className="w-5 h-5 text-gray-400" />;
     }
   };
 
-  const isInMeeting = !!(botId && meetingStatus !== 'idle' && meetingStatus !== 'completed' && !meetingStatus.startsWith('failed_'));
+  const isInMeeting = !!(botId && meetingStatus && meetingStatus !== 'idle' && meetingStatus !== 'completed' && (!meetingStatus || !meetingStatus.startsWith('failed_')));
 
   return (
     <div className="bg-white rounded-lg shadow-md p-6">
@@ -143,10 +143,10 @@ export const MeetingPanel: React.FC<MeetingPanelProps> = ({ onStatusChange }) =>
         </div>
 
         {/* Status Message */}
-        {statusMessage && (
+          {statusMessage && (
           <div className={`p-3 rounded-md text-sm ${
             meetingStatus === 'in_call_recording' ? 'bg-green-50 text-green-800' :
-            meetingStatus.startsWith('failed_') ? 'bg-red-50 text-red-800' :
+            meetingStatus && meetingStatus.startsWith('failed_') ? 'bg-red-50 text-red-800' :
             'bg-blue-50 text-blue-800'
           }`}>
             {statusMessage}

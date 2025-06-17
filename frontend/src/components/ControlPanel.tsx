@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
-import { FiSend, FiRefreshCw, FiDownload, FiTrash2 } from 'react-icons/fi';
+import { Send, RefreshCw, Download, Trash2 } from 'lucide-react';
 import { motion } from 'framer-motion';
-import toast from 'react-hot-toast';
 
 interface ControlPanelProps {
   onSendPrompt: (prompt: string) => void;
@@ -58,7 +57,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
             disabled={!isConnected || isLoading || !prompt.trim()}
             className="absolute bottom-3 right-3 p-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <FiSend className="w-4 h-4" />
+            <Send className="w-4 h-4" />
           </button>
         </div>
       </form>
@@ -72,7 +71,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
           disabled={!isConnected || isLoading}
           className="w-full flex items-center justify-center space-x-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          <FiRefreshCw className="w-4 h-4" />
+          <RefreshCw className="w-4 h-4" />
           <span>Test Pipeline</span>
         </button>
 
@@ -81,7 +80,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
           disabled={!isConnected}
           className="w-full flex items-center justify-center space-x-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          <FiDownload className="w-4 h-4" />
+          <Download className="w-4 h-4" />
           <span>Export Conversation</span>
         </button>
 
@@ -94,7 +93,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
           disabled={!isConnected}
           className="w-full flex items-center justify-center space-x-2 px-4 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          <FiTrash2 className="w-4 h-4" />
+          <Trash2 className="w-4 h-4" />
           <span>Clear History</span>
         </button>
       </div>
@@ -111,7 +110,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
               animate={{ rotate: 360 }}
               transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
             >
-              <FiRefreshCw className="w-4 h-4 text-primary-400" />
+              <RefreshCw className="w-4 h-4 text-primary-400" />
             </motion.div>
             <span className="text-sm text-primary-300">Processing...</span>
           </div>
