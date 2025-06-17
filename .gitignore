@@ -1,0 +1,141 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environment
+.venv/
+venv/
+ENV/
+env/
+backend/.venv/
+backend/venv/
+backend/ENV/
+backend/env/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+backend/.env
+backend/.env.local
+backend/.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+database/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.hypothesis/
+coverage/
+
+# UV (Python package manager)
+.uv/
+backend/.uv/
+
+# Node.js / Frontend
+node_modules/
+frontend/node_modules/
+/.pnp
+.pnp.js
+frontend/.pnp
+frontend/.pnp.js
+
+# Frontend build
+frontend/build/
+frontend/dist/
+
+# Frontend environment
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.test.local
+frontend/.env.production.local
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+
+# Documentation build
+docs/_build/
+docs/.doctrees/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+# celery beat schedule file
+celerybeat-schedule
+
+# SageMath parsed files
+*.sage.py
+
+# Environments
+.env.development
+.env.test
+.env.production
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# Backend specific
+backend/instance/
+backend/*.db
+
+# Frontend specific
+frontend/.cache/
+frontend/.parcel-cache/
+
+# Lock files (keep these in version control)
+# package-lock.json
+# yarn.lock
+# uv.lock
