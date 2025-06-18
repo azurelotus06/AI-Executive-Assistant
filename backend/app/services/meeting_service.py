@@ -125,6 +125,14 @@ class MeetingBaaSService:
                 
                 logger.info(f"Bot {bot_id} joining meeting: {meeting_url}")
                 
+                # Send websocket status update
+                from app.core.websocket_manager import manager
+                await manager.send_status_update("joining_call", {
+                    "bot_id": bot_id,
+                    "meeting_url": meeting_url,
+                    "message": "Bot is joining the meeting"
+                })
+                
                 return {
                     "status": "success",
                     "bot_id": bot_id,
@@ -254,6 +262,14 @@ class MeetingBaaSService:
                 if meeting:
                     meeting.status = status_code
                     await db.commit()
+                
+                # Send websocket status update
+                from app.core.websocket_manager import manager
+                await manager.send_status_update(status_code, {
+                    "bot_id": bot_id,
+                    "meeting_url": meeting.meeting_url if meeting else None,
+                    "message": f"Bot status changed to {status_code}"
+                })
                 
                 return {
                     "status": "success",

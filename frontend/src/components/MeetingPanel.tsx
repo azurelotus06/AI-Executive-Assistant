@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Phone, PhoneOff, Users, AlertCircle, CheckCircle } from 'lucide-react';
-import { joinMeeting, leaveMeeting, getMeetingStatus } from '../services/api';
+import { joinMeeting, leaveMeeting, wsService } from '../services/api';
 
 interface MeetingPanelProps {
   onStatusChange?: (status: string) => void;
@@ -14,51 +14,54 @@ export const MeetingPanel: React.FC<MeetingPanelProps> = ({ onStatusChange }) =>
   const [error, setError] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string>('');
 
-  // Status polling
+  // WebSocket status updates
   useEffect(() => {
-    if (botId && meetingStatus !== 'completed' && meetingStatus !== 'failed') {
-      const interval = setInterval(async () => {
-        try {
-          const status = await getMeetingStatus(botId);
-          setMeetingStatus(status.status);
-          
-          // Update status message based on status
-          switch (status.status) {
-            case 'joining_call':
-              setStatusMessage('Bot is joining the meeting...');
-              break;
-            case 'in_waiting_room':
-              setStatusMessage('Bot is in the waiting room. Please admit it to the meeting.');
-              break;
-            case 'in_call_not_recording':
-              setStatusMessage('Bot has joined but is not recording yet...');
-              break;
-            case 'in_call_recording':
-              setStatusMessage('Bot is actively recording the meeting.');
-              break;
-            case 'call_ended':
-              setStatusMessage('Meeting has ended. Processing transcript...');
-              break;
-            case 'completed':
-              setStatusMessage('Meeting completed successfully!');
-              break;
-            default:
-              if (status?.status && status.status.startsWith('failed_')) {
-                setStatusMessage(`Failed: ${status.status.replace('failed_', '').replace(/_/g, ' ')}`);
-              }
+    const handleStatusUpdate = (data: any) => {
+      const newStatus = data.status;
+      setMeetingStatus(newStatus);
+      
+      // Update status message based on status
+      switch (newStatus) {
+        case 'joining_call':
+          setStatusMessage('Bot is joining the meeting...');
+          break;
+        case 'in_waiting_room':
+          setStatusMessage('Bot is in the waiting room. Please admit it to the meeting.');
+          break;
+        case 'in_call_not_recording':
+          setStatusMessage('Bot has joined but is not recording yet...');
+          break;
+        case 'in_call_recording':
+          setStatusMessage('Bot is actively recording the meeting.');
+          break;
+        case 'call_ended':
+          setStatusMessage('Meeting has ended. Processing transcript...');
+          break;
+        case 'completed':
+          setStatusMessage('Meeting completed successfully!');
+          break;
+        default:
+          if (newStatus && newStatus.startsWith('failed_')) {
+            setStatusMessage(`Failed: ${newStatus.replace('failed_', '').replace(/_/g, ' ')}`);
           }
-          
-          if (onStatusChange) {
-            onStatusChange(status.status);
-          }
-        } catch (err) {
-          console.error('Error polling status:', err);
-        }
-      }, 5000); // Poll every 5 seconds
+      }
+      
+      if (onStatusChange) {
+        onStatusChange(newStatus);
+      }
+    };
 
-      return () => clearInterval(interval);
+    wsService.on('status', handleStatusUpdate);
+    
+    // Connect websocket if not already connected
+    if (!wsService.isConnected()) {
+      wsService.connect();
     }
-  }, [botId, meetingStatus, onStatusChange]);
+
+    return () => {
+      wsService.off('status', handleStatusUpdate);
+    };
+  }, [onStatusChange]);
 
   const handleJoinMeeting = async () => {
     if (!meetingUrl.trim()) {

@@ -65,7 +65,7 @@
       "last 1 safari version"
     ]
   },
-  "proxy": "https://026f-4-227-169-224.ngrok-free.app",
+  "proxy": "https://magnetic-thrush-currently.ngrok-free.app",
   "devDependencies": {
     "react-app-rewired": "^2.2.1"
   }

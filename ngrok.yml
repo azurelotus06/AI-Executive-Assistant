@@ -4,4 +4,5 @@ tunnels:
   backend:
     proto: http
     addr: 8000
+    bind_tls: false
     inspect: false

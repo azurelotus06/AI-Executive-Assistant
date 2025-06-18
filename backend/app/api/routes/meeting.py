@@ -19,6 +19,10 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/meeting", tags=["meeting"])
 
 
+@router.options("/join")
+async def join_meeting_options():
+    return {"status": "ok"}
+
 @router.post("/join", response_model=JoinMeetingResponse)
 async def join_meeting(
     request: JoinMeetingRequest,

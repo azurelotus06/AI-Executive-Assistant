@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     audio_silence_threshold: float = Field(0.01, env="AUDIO_SILENCE_THRESHOLD")
     
     # AI Settings
-    ai_model: str = Field("gpt-4", env="AI_MODEL")
+    ai_model: str = Field("gpt-4o-mini", env="AI_MODEL")
     ai_temperature: float = Field(0.7, env="AI_TEMPERATURE")
     ai_max_tokens: int = Field(150, env="AI_MAX_TOKENS")
     ai_context_window: int = Field(10, env="AI_CONTEXT_WINDOW")  # Number of previous messages to keep
