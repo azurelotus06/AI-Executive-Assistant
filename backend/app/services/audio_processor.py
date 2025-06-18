@@ -254,3 +254,6 @@ class AudioProcessor:
         self.silence_counter = 0
         self.is_recording = False
         logger.info("Audio buffers cleared")
+
+# Create and export the audio processor instance
+audio_processor = AudioProcessor()

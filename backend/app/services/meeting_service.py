@@ -7,7 +7,7 @@ import requests
 import logging
 from datetime import datetime
 from typing import Optional, Dict, List, Any
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.models.database import get_db
@@ -36,7 +36,7 @@ class MeetingBaaSService:
         self, 
         meeting_url: str,
         bot_name: str = "AI Executive Assistant",
-        db: Session = None
+        db: AsyncSession = None
     ) -> Dict[str, Any]:
         """Join a meeting with a bot"""
         try:
@@ -121,7 +121,7 @@ class MeetingBaaSService:
                         started_at=datetime.utcnow()
                     )
                     db.add(meeting)
-                    db.commit()
+                    await db.commit()
                 
                 logger.info(f"Bot {bot_id} joining meeting: {meeting_url}")
                 
@@ -227,7 +227,7 @@ class MeetingBaaSService:
             logger.error(f"Error fetching meeting data: {str(e)}")
             return None
     
-    async def process_webhook(self, webhook_data: Dict[str, Any], db: Session) -> Dict[str, Any]:
+    async def process_webhook(self, webhook_data: Dict[str, Any], db: AsyncSession) -> Dict[str, Any]:
         """Process webhook events from MeetingBaaS"""
         try:
             event = webhook_data.get("event")
@@ -253,7 +253,7 @@ class MeetingBaaSService:
                 status_code = event_data.get("status", {}).get("code")
                 if meeting:
                     meeting.status = status_code
-                    db.commit()
+                    await db.commit()
                 
                 return {
                     "status": "success",
@@ -271,7 +271,7 @@ class MeetingBaaSService:
                     meeting.ended_at = datetime.utcnow()
                     meeting.transcript = json.dumps(bot_data.get("transcripts", []))
                     meeting.duration = bot_data.get("duration", 0)
-                    db.commit()
+                    await db.commit()
                 
                 # Remove from active bots
                 if bot_id in self.active_bots:
@@ -289,7 +289,7 @@ class MeetingBaaSService:
                 if meeting:
                     meeting.status = f"failed_{error_code}"
                     meeting.ended_at = datetime.utcnow()
-                    db.commit()
+                    await db.commit()
                 
                 # Remove from active bots
                 if bot_id in self.active_bots:

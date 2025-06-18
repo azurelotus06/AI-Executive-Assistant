@@ -1,13 +1,13 @@
 """Meeting API routes for MeetingBaaS integration"""
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Dict, Any, List
 import logging
 import uuid
 
 from app.models.database import get_db
 from app.services.meeting_service import meeting_service
-from app.services.realtime_audio_handler import realtime_audio_handler
+from app.services import audio_handler
 from app.schemas.meeting import (
     JoinMeetingRequest,
     JoinMeetingResponse,
@@ -22,7 +22,7 @@ router = APIRouter(prefix="/meeting", tags=["meeting"])
 @router.post("/join", response_model=JoinMeetingResponse)
 async def join_meeting(
     request: JoinMeetingRequest,
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ) -> JoinMeetingResponse:
     """Join a Zoom meeting with the AI assistant bot"""
     try:
@@ -76,7 +76,7 @@ async def leave_meeting(bot_id: str) -> Dict[str, Any]:
 @router.get("/status/{bot_id}", response_model=MeetingStatusResponse)
 async def get_meeting_status(
     bot_id: str,
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ) -> MeetingStatusResponse:
     """Get the status of a meeting bot"""
     try:
@@ -116,7 +116,7 @@ async def get_active_meetings() -> List[Dict[str, Any]]:
 @router.post("/webhook")
 async def meeting_webhook(
     event: WebhookEvent,
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ) -> Dict[str, Any]:
     """Handle webhook events from MeetingBaaS"""
     try:
@@ -143,7 +143,7 @@ async def websocket_meeting_audio(websocket: WebSocket):
     
     try:
         # Handle audio stream
-        await realtime_audio_handler.handle_websocket_audio(websocket, session_id)
+        await audio_handler.handle_websocket(websocket)
         
     except WebSocketDisconnect:
         logger.info(f"WebSocket disconnected for session {session_id}")
@@ -159,14 +159,14 @@ async def websocket_meeting_audio(websocket: WebSocket):
 @router.get("/transcripts/{bot_id}")
 async def get_meeting_transcripts(
     bot_id: str,
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ) -> Dict[str, Any]:
     """Get transcripts for a specific meeting"""
     try:
         from app.models.conversation import Meeting
         
         # Get meeting from database
-        meeting = db.query(Meeting).filter_by(bot_id=bot_id).first()
+        meeting = await db.get(Meeting, bot_id)
         
         if not meeting:
             raise HTTPException(status_code=404, detail="Meeting not found")

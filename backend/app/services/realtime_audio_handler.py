@@ -1,336 +1,190 @@
-"""Real-time audio handler for processing MeetingBaaS audio streams"""
+"""Real-time audio handler for MeetingBaaS WebSocket streams"""
 import asyncio
 import json
-import time
+import logging
 import wave
 import tempfile
 import os
-import logging
-from typing import Dict, Optional, List, Any
 from datetime import datetime
-import numpy as np
-import whisper
+from typing import Dict, Optional, List
+from fastapi import WebSocket
 
-from app.core.websocket_manager import manager
-from app.services.ai_service import ai_service
-from app.services.tts_service import tts_service
-from app.models.database import get_db
-from app.models.conversation import Session, Message, AIResponse
+from app.services.audio_processor import AudioProcessor
+from app.services.meeting_service import MeetingBaaSService
+from app.core.config import settings
+from app.models.conversation import Meeting
 
 logger = logging.getLogger(__name__)
 
-
-class RealtimeAudioHandler:
-    """Handles real-time audio processing from MeetingBaaS"""
+class RealTimeAudioHandler:
+    """Handles real-time audio streams from MeetingBaaS"""
     
     def __init__(self):
-        self.whisper_model = None
-        self.speakers: Dict[str, Dict[str, Any]] = {}
+        self.audio_processor = AudioProcessor()
+        self.meeting_service = MeetingBaaSService()
+        self.active_sessions: Dict[str, Dict] = {}
+        self.speakers: Dict[str, Dict] = {}
         self.current_speaker: Optional[str] = None
-        self.active_sessions: Dict[str, Dict[str, Any]] = {}
+        self.silence_threshold = 0.5  # seconds of silence to trigger processing
+        self.processing_interval = 2.0  # max time between processing chunks
+        self.whisper_model = None
         
-        # Audio processing settings
-        self.SILENCE_THRESHOLD = 0.5  # seconds
-        self.PROCESSING_INTERVAL = 2.0  # seconds
-        self.SAMPLE_RATE = 16000
-        self.SAMPLE_WIDTH = 2
-        self.CHANNELS = 1
-        
-    def _load_whisper_model(self):
-        """Lazy load Whisper model"""
-        if self.whisper_model is None:
-            logger.info("Loading Whisper model...")
+    async def initialize(self):
+        """Initialize the handler and load models"""
+        try:
+            import whisper
             self.whisper_model = whisper.load_model("small")
-            logger.info("Whisper model loaded")
-    
-    def _write_pcm_to_wav(self, pcm_bytes: bytes, wav_path: str) -> None:
-        """Convert PCM audio to WAV format"""
-        with wave.open(wav_path, 'wb') as wf:
-            wf.setnchannels(self.CHANNELS)
-            wf.setsampwidth(self.SAMPLE_WIDTH)
-            wf.setframerate(self.SAMPLE_RATE)
-            wf.writeframes(pcm_bytes)
-    
-    async def process_speech_segment(
-        self, 
-        speaker_id: str, 
-        audio_segment: bytes,
-        session_id: str
-    ) -> Optional[Dict[str, Any]]:
-        """Process a speech segment and return transcript"""
-        start_time = time.monotonic()
-        
-        # Check if audio is WAV format
-        is_wav = audio_segment[:4] == b'RIFF'
-        
-        # Create temporary file for audio
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmpfile:
-            tmpfile_path = tmpfile.name
-            if is_wav:
-                tmpfile.write(audio_segment)
-            else:
-                self._write_pcm_to_wav(audio_segment, tmpfile_path)
-        
-        try:
-            # Ensure Whisper model is loaded
-            self._load_whisper_model()
-            
-            # Transcribe audio
-            result = self.whisper_model.transcribe(tmpfile_path)
-            transcript_text = result.get("text", "").strip()
-            processing_time = time.monotonic() - start_time
-            
-            if transcript_text:
-                logger.info(f"Speaker {speaker_id}: {transcript_text} (processed in {processing_time:.2f}s)")
-                
-                # Store transcript in speaker data
-                current_time = time.monotonic()
-                if 'transcripts' not in self.speakers[speaker_id]:
-                    self.speakers[speaker_id]['transcripts'] = []
-                
-                transcript_data = {
-                    'text': transcript_text,
-                    'timestamp': current_time,
-                    'processing_time': processing_time
-                }
-                
-                self.speakers[speaker_id]['transcripts'].append(transcript_data)
-                
-                # Save to database
-                await self._save_message_to_db(
-                    session_id=session_id,
-                    speaker=self.speakers[speaker_id].get('name', f"Speaker {speaker_id}"),
-                    text=transcript_text,
-                    confidence=result.get("confidence", 0.0)
-                )
-                
-                # Process with AI for insights
-                await self._process_with_ai(session_id, transcript_text)
-                
-                return transcript_data
-            else:
-                logger.debug(f"No transcription for Speaker {speaker_id}")
-                
+            logger.info("Loaded Whisper model for local transcription")
+        except ImportError:
+            logger.warning("Whisper not available, will use API only")
         except Exception as e:
-            logger.error(f"Transcription error: {type(e).__name__}: {e}")
-        finally:
-            # Clean up temporary file
-            try:
-                if os.path.exists(tmpfile_path):
-                    os.remove(tmpfile_path)
-            except Exception as cleanup_err:
-                logger.error(f"Error cleaning up temporary file: {cleanup_err}")
-        
-        return None
-    
-    async def _save_message_to_db(
-        self, 
-        session_id: str, 
-        speaker: str, 
-        text: str,
-        confidence: float = None
-    ) -> None:
-        """Save message to database"""
-        try:
-            db = next(get_db())
-            
-            # Get or create session
-            session = db.query(Session).filter_by(session_id=session_id).first()
-            if not session:
-                session = Session(session_id=session_id, status="active")
-                db.add(session)
-                db.commit()
-            
-            # Create message
-            message = Message(
-                session_id=session.id,
-                speaker=speaker,
-                text=text,
-                confidence=confidence
-            )
-            db.add(message)
-            db.commit()
-            
-        except Exception as e:
-            logger.error(f"Error saving message to database: {e}")
-        finally:
-            db.close()
-    
-    async def _process_with_ai(self, session_id: str, transcript: str) -> None:
-        """Process transcript with AI for insights"""
-        try:
-            # Get recent conversation context
-            db = next(get_db())
-            session = db.query(Session).filter_by(session_id=session_id).first()
-            
-            if not session:
-                return
-            
-            # Get recent messages for context
-            recent_messages = db.query(Message).filter_by(
-                session_id=session.id
-            ).order_by(Message.timestamp.desc()).limit(10).all()
-            
-            # Build context
-            context = []
-            for msg in reversed(recent_messages):
-                context.append(f"{msg.speaker}: {msg.text}")
-            
-            # Analyze with AI
-            analysis = await ai_service.analyze_conversation(
-                current_message=transcript,
-                context=context,
-                mode="executive_assistant"
-            )
-            
-            if analysis and analysis.get("should_respond"):
-                # Save AI response
-                ai_response = AIResponse(
-                    session_id=session.id,
-                    prompt=transcript,
-                    response=analysis["response"],
-                    confidence=analysis.get("confidence", 0.0),
-                    should_speak=True,
-                    reasoning=analysis.get("reasoning", "")
-                )
-                db.add(ai_response)
-                db.commit()
-                
-                # Generate TTS if needed
-                if analysis.get("should_speak", False):
-                    await self._generate_and_play_tts(analysis["response"])
-                
-                # Send to WebSocket clients
-                await manager.broadcast({
-                    "type": "ai_insight",
-                    "data": {
-                        "response": analysis["response"],
-                        "confidence": analysis.get("confidence", 0.0),
-                        "timestamp": datetime.utcnow().isoformat()
-                    }
-                })
-            
-            db.close()
-            
-        except Exception as e:
-            logger.error(f"Error processing with AI: {e}")
-    
-    async def _generate_and_play_tts(self, text: str) -> None:
-        """Generate and play TTS audio"""
-        try:
-            # Generate TTS
-            audio_data = await tts_service.generate_speech(text)
-            
-            if audio_data:
-                # Send audio to WebSocket clients
-                await manager.broadcast({
-                    "type": "tts_audio",
-                    "data": {
-                        "audio": audio_data,
-                        "text": text,
-                        "timestamp": datetime.utcnow().isoformat()
-                    }
-                })
-                
-        except Exception as e:
-            logger.error(f"Error generating TTS: {e}")
-    
-    async def handle_websocket_audio(self, websocket, session_id: str) -> None:
-        """Handle incoming WebSocket audio stream from MeetingBaaS"""
-        logger.info(f"Starting audio handler for session {session_id}")
-        
-        # Initialize session
-        self.active_sessions[session_id] = {
-            "started_at": datetime.utcnow(),
-            "websocket": websocket
-        }
+            logger.error(f"Error loading Whisper model: {e}")
+
+    async def handle_websocket(self, websocket: WebSocket):
+        """Handle incoming WebSocket connection from MeetingBaaS"""
+        await websocket.accept()
+        logger.info("WebSocket connection accepted for real-time audio")
         
         try:
             while True:
-                msg = await websocket.receive()
+                message = await websocket.receive()
                 
-                if msg["type"] == "websocket.disconnect":
+                if message.get("type") == "websocket.disconnect":
                     logger.info("WebSocket disconnected by client")
                     break
-                
-                # Handle text messages (speaker info)
-                if msg.get("text"):
-                    try:
-                        data = json.loads(msg["text"])
-                        
-                        # Process speaker information
-                        if isinstance(data, list) and data and 'id' in data[0]:
-                            for speaker_info in data:
-                                speaker_id = speaker_info['id']
-                                is_speaking = speaker_info.get('isSpeaking', False)
-                                
-                                if speaker_id not in self.speakers:
-                                    self.speakers[speaker_id] = {
-                                        'name': speaker_info.get('name', f"Speaker {speaker_id}"),
-                                        'buffer': bytearray(),
-                                        'last_voice_time': time.monotonic(),
-                                        'is_speaking': is_speaking,
-                                        'last_processed_time': 0,
-                                        'transcripts': []
-                                    }
-                                else:
-                                    self.speakers[speaker_id]['name'] = speaker_info.get('name', self.speakers[speaker_id].get('name'))
-                                    self.speakers[speaker_id]['is_speaking'] = is_speaking
-                                
-                                if is_speaking:
-                                    self.current_speaker = speaker_id
-                                    logger.debug(f"Current speaker: {self.speakers[speaker_id]['name']}")
-                                    
-                    except json.JSONDecodeError:
-                        logger.error(f"Invalid JSON in text message: {msg['text']}")
-                
-                # Handle audio bytes
-                elif "bytes" in msg and msg["bytes"] is not None and self.current_speaker is not None:
-                    audio_bytes = msg["bytes"]
-                    self.speakers[self.current_speaker]['buffer'].extend(audio_bytes)
-                    self.speakers[self.current_speaker]['last_voice_time'] = time.monotonic()
-                    self.speakers[self.current_speaker]['is_speaking'] = True
-                
-                # Process audio buffers
-                current_time = time.monotonic()
-                for speaker_id, data in self.speakers.items():
-                    # Process on interval or silence
-                    should_process = False
                     
-                    if data['is_speaking']:
-                        # Check if we should process based on interval
-                        if current_time - data.get('last_processed_time', 0) > self.PROCESSING_INTERVAL and len(data['buffer']) > 0:
-                            should_process = True
-                    
-                    # Check for silence
-                    if current_time - data['last_voice_time'] > self.SILENCE_THRESHOLD:
-                        if len(data['buffer']) > 0:
-                            should_process = True
-                            data['is_speaking'] = False
-                    
-                    if should_process:
-                        segment = bytes(data['buffer'])
-                        data['buffer'] = bytearray()
-                        data['last_processed_time'] = current_time
-                        
-                        # Process segment asynchronously
-                        asyncio.create_task(
-                            self.process_speech_segment(speaker_id, segment, session_id)
-                        )
-                        
-        except Exception as e:
-            logger.error(f"WebSocket error: {type(e).__name__}: {e}")
-        finally:
-            # Clean up session
-            if session_id in self.active_sessions:
-                del self.active_sessions[session_id]
-            
-            # Clear speakers for this session
-            self.speakers.clear()
-            self.current_speaker = None
-            
-            logger.info(f"Audio handler stopped for session {session_id}")
+                if message.get("text"):
+                    await self._handle_text_message(message["text"])
+                elif message.get("bytes") and self.current_speaker:
+                    await self._handle_audio_data(
+                        self.current_speaker, 
+                        message["bytes"]
+                    )
 
+        except Exception as e:
+            logger.error(f"WebSocket error: {e}")
+        finally:
+            await websocket.close()
+            logger.info("WebSocket connection closed")
+
+    async def _handle_text_message(self, message_text: str):
+        """Handle text messages containing speaker metadata"""
+        try:
+            data = json.loads(message_text)
+            if isinstance(data, list) and data and 'id' in data[0]:
+                for speaker_info in data:
+                    speaker_id = speaker_info['id']
+                    is_speaking = speaker_info.get('isSpeaking', False)
+                    
+                    if speaker_id not in self.speakers:
+                        self.speakers[speaker_id] = {
+                            'name': speaker_info.get('name'),
+                            'buffer': bytearray(),
+                            'last_voice_time': datetime.now().timestamp(),
+                            'is_speaking': is_speaking,
+                            'transcripts': []
+                        }
+                    else:
+                        self.speakers[speaker_id]['is_speaking'] = is_speaking
+                        self.speakers[speaker_id]['name'] = speaker_info.get(
+                            'name', 
+                            self.speakers[speaker_id].get('name')
+                        )
+                    
+                    if is_speaking:
+                        self.current_speaker = speaker_id
+                        logger.info(f"Current speaker: {self.speakers[speaker_id]['name']}")
+
+        except json.JSONDecodeError:
+            logger.error(f"Invalid JSON in message: {message_text}")
+        except Exception as e:
+            logger.error(f"Error processing text message: {e}")
+
+    async def _handle_audio_data(self, speaker_id: str, audio_bytes: bytes):
+        """Handle incoming audio data for a speaker"""
+        try:
+            if speaker_id not in self.speakers:
+                logger.warning(f"Received audio for unknown speaker: {speaker_id}")
+                return
+                
+            speaker = self.speakers[speaker_id]
+            speaker['buffer'].extend(audio_bytes)
+            speaker['last_voice_time'] = datetime.now().timestamp()
+            
+            # Process if we have enough silence or max interval reached
+            current_time = datetime.now().timestamp()
+            time_since_last = current_time - speaker['last_voice_time']
+            
+            if (len(speaker['buffer']) > 0 and 
+                (time_since_last > self.silence_threshold or 
+                 len(speaker['buffer']) > self.sample_rate * 10)):  # Max 10 sec
+                
+                segment = bytes(speaker['buffer'])
+                speaker['buffer'] = bytearray()
+                
+                transcript = await self._process_audio_segment(speaker_id, segment)
+                if transcript:
+                    speaker['transcripts'].append({
+                        'text': transcript,
+                        'timestamp': current_time
+                    })
+                    
+                    # TODO: Send to GPT for analysis
+                    # TODO: Queue TTS response if needed
+
+        except Exception as e:
+            logger.error(f"Error handling audio data: {e}")
+
+    async def _process_audio_segment(self, speaker_id: str, audio_data: bytes) -> Optional[str]:
+        """Process an audio segment and return transcription"""
+        try:
+            is_wav = audio_data[:4] == b'RIFF'
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmpfile:
+                tmp_path = tmpfile.name
+                if is_wav:
+                    tmpfile.write(audio_data)
+                else:
+                    self._write_pcm_to_wav(audio_data, tmp_path)
+            
+            try:
+                if self.whisper_model:
+                    result = self.whisper_model.transcribe(tmp_path)
+                    transcript = result.get("text", "").strip()
+                else:
+                    # Fallback to API
+                    transcript = await self.audio_processor.transcribe_audio(tmp_path)
+                
+                if transcript:
+                    logger.info(f"Speaker {speaker_id}: {transcript}")
+                    return transcript
+                    
+            finally:
+                if os.path.exists(tmp_path):
+                    os.remove(tmp_path)
+                    
+        except Exception as e:
+            logger.error(f"Error processing audio segment: {e}")
+            return None
+
+    def _write_pcm_to_wav(self, pcm_bytes: bytes, wav_path: str, 
+                         sample_rate: int = 16000, sample_width: int = 2, 
+                         channels: int = 1):
+        """Convert PCM audio to WAV format"""
+        with wave.open(wav_path, 'wb') as wf:
+            wf.setnchannels(channels)
+            wf.setsampwidth(sample_width)
+            wf.setframerate(sample_rate)
+            wf.writeframes(pcm_bytes)
+
+    async def generate_ai_response(self, transcript: str, context: Dict) -> str:
+        """Generate AI response using GPT-4"""
+        # TODO: Implement with proper prompt engineering
+        return "AI response placeholder"
+
+    async def send_tts_response(self, text: str):
+        """Send text to TTS service"""
+        # TODO: Implement ElevenLabs integration
+        pass
 
 # Global instance
-realtime_audio_handler = RealtimeAudioHandler()
+audio_handler = RealTimeAudioHandler()

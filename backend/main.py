@@ -13,6 +13,7 @@ from app.api.routes import audio, ai, control, meeting
 from app.services.audio_processor import AudioProcessor
 from app.services.ai_service import AIService
 from app.services.tts_service import TTSService
+from app.services.realtime_audio_handler import audio_handler
 from app.core.websocket_manager import WebSocketManager
 
 # Load environment variables
@@ -48,6 +49,11 @@ app.include_router(audio.router, prefix="/api/audio", tags=["audio"])
 app.include_router(ai.router, prefix="/api/ai", tags=["ai"])
 app.include_router(control.router, prefix="/api/control", tags=["control"])
 app.include_router(meeting.router, prefix="/api", tags=["meeting"])
+
+@app.websocket("/ws/meeting")
+async def meeting_audio_websocket(websocket: WebSocket):
+    """WebSocket endpoint for MeetingBaaS audio streams"""
+    await audio_handler.handle_websocket(websocket)
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
@@ -138,6 +144,12 @@ async def health_check():
             "tts_service": tts_service.is_healthy()
         }
     }
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize services on startup"""
+    from scripts.init_services import initialize_services
+    await initialize_services()
 
 if __name__ == "__main__":
     import uvicorn

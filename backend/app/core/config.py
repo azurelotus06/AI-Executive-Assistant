@@ -19,10 +19,8 @@ class Settings(BaseSettings):
     devtunnel_host: Optional[str] = Field(None, env="DEVTUNNEL_HOST")
     
     # Database
-    database_url: str = Field(
-        "postgresql://user:password@localhost:5432/zoom_assistant",
-        env="DATABASE_URL"
-    )
+    database_url: str = Field(..., env="DATABASE_URL")
+    async_database_url: str = Field(..., env="ASYNC_DATABASE_URL")
     
     # Audio Settings
     audio_sample_rate: int = Field(16000, env="AUDIO_SAMPLE_RATE")
