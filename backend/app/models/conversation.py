@@ -77,3 +77,6 @@ class Meeting(Base):
     summary = Column(Text, nullable=True)
     attendees = Column(JSON, nullable=True)
     recording_url = Column(String(500), nullable=True)
+    status_details = Column(JSON, nullable=True)  # Detailed status info
+    speakers = Column(JSON, nullable=True)  # List of speakers
+    error_details = Column(JSON, nullable=True)  # Error details if meeting failed

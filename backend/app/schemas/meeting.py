@@ -31,8 +31,34 @@ class MeetingStatusResponse(BaseModel):
 
 class WebhookEvent(BaseModel):
     """Webhook event from MeetingBaaS"""
-    event: str = Field(..., description="Event type")
-    data: Dict[str, Any] = Field(..., description="Event data")
+    event: str = Field(..., description="Event type (bot.status_change, complete, failed)")
+    data: Dict[str, Any] = Field(..., description="Event data payload")
+    api_key: Optional[str] = Field(None, description="API key from x-meeting-baas-api-key header")
+
+class StatusChangeData(BaseModel):
+    """Data model for bot status change events"""
+    bot_id: str = Field(..., description="The identifier of the bot")
+    status: Dict[str, Any] = Field(..., description="Status details")
+    
+    class StatusDetails(BaseModel):
+        """Nested status details model"""
+        code: str = Field(..., description="Status code (joining_call, in_waiting_room, etc.)")
+        created_at: str = Field(..., description="ISO timestamp of event")
+        start_time: Optional[str] = Field(None, description="Recording start time (for in_call_recording)")
+        error_message: Optional[str] = Field(None, description="Error message (for meeting_error)")
+        error_type: Optional[str] = Field(None, description="Error type (for meeting_error)")
+
+class CompleteData(BaseModel):
+    """Data model for complete events"""
+    bot_id: str = Field(..., description="The identifier of the bot")
+    mp4: Optional[str] = Field(None, description="Pre-signed S3 URL for recording")
+    speakers: Optional[List[str]] = Field(None, description="List of speakers")
+    transcript: Optional[List[Dict[str, Any]]] = Field(None, description="Meeting transcript")
+
+class FailedData(BaseModel):
+    """Data model for failed events"""
+    bot_id: str = Field(..., description="The identifier of the bot")
+    error: str = Field(..., description="Error type (CannotJoinMeeting, TimeoutWaitingToStart, etc.)")
 
 
 class TranscriptSegment(BaseModel):

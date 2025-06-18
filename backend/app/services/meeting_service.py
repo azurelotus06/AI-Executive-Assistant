@@ -78,15 +78,16 @@ class MeetingBaaSService:
                 "bot_name": bot_name,
                 "bot_image": None,
                 "entry_message": "AI Executive Assistant has joined to provide real-time insights",
-                "recording_mode": "audio_only",
+                "recording_mode": "speaker_view",
                 "reserved": False,
                 "speech_to_text": {
                     "provider": "Default"
                 },
                 "automatic_leave": {
-                    "waiting_room_timeout": 900
+                    "waiting_room_timeout": 600
                 },
                 "streaming": {
+                    "audio_frequency": "16khz",
                     "output": websocket_url
                 },
                 "webhook_url": webhook_url
@@ -238,6 +239,14 @@ class MeetingBaaSService:
     async def process_webhook(self, webhook_data: Dict[str, Any], db: AsyncSession) -> Dict[str, Any]:
         """Process webhook events from MeetingBaaS"""
         try:
+            # Validate API key if present
+            api_key = webhook_data.get("api_key")
+            if api_key and api_key != self.api_key:
+                return {
+                    "status": "error",
+                    "message": "Invalid API key"
+                }
+
             event = webhook_data.get("event")
             event_data = webhook_data.get("data", {})
             bot_id = event_data.get("bot_id")
@@ -250,17 +259,31 @@ class MeetingBaaSService:
             
             logger.info(f"Processing webhook event: {event} for bot {bot_id}")
             
-            # Update bot status
-            if bot_id in self.active_bots:
-                self.active_bots[bot_id]["status"] = event
-            
             # Get meeting from database
-            meeting = db.query(Meeting).filter_by(bot_id=bot_id).first()
+            meeting = await db.get(Meeting, bot_id)
             
+            # Handle different event types
             if event == "bot.status_change":
                 status_code = event_data.get("status", {}).get("code")
+                status_details = {
+                    "code": status_code,
+                    "created_at": event_data.get("status", {}).get("created_at"),
+                    "start_time": event_data.get("status", {}).get("start_time"),
+                    "error_message": event_data.get("status", {}).get("error_message"),
+                    "error_type": event_data.get("status", {}).get("error_type")
+                }
+                
+                # Update active bots
+                if bot_id in self.active_bots:
+                    self.active_bots[bot_id].update({
+                        "status": status_code,
+                        "status_details": status_details
+                    })
+                
+                # Update database
                 if meeting:
                     meeting.status = status_code
+                    meeting.status_details = json.dumps(status_details)
                     await db.commit()
                 
                 # Send websocket status update
@@ -268,7 +291,8 @@ class MeetingBaaSService:
                 await manager.send_status_update(status_code, {
                     "bot_id": bot_id,
                     "meeting_url": meeting.meeting_url if meeting else None,
-                    "message": f"Bot status changed to {status_code}"
+                    "status_details": status_details,
+                    "message": f"Status changed to {status_code}"
                 })
                 
                 return {
@@ -278,43 +302,81 @@ class MeetingBaaSService:
                 }
             
             elif event == "complete":
-                # Meeting has ended, fetch final data
-                meeting_data = await self.fetch_meeting_data(bot_id)
+                # Store complete meeting data
+                mp4_url = event_data.get("mp4")
+                speakers = event_data.get("speakers", [])
+                transcript = event_data.get("transcript", [])
                 
-                if meeting and meeting_data:
-                    bot_data = meeting_data.get("bot_data", {})
+                if meeting:
                     meeting.status = "completed"
                     meeting.ended_at = datetime.utcnow()
-                    meeting.transcript = json.dumps(bot_data.get("transcripts", []))
-                    meeting.duration = bot_data.get("duration", 0)
+                    meeting.recording_url = mp4_url
+                    meeting.speakers = json.dumps(speakers)
+                    meeting.transcript = json.dumps(transcript)
                     await db.commit()
                 
-                # Remove from active bots
+                # Update active bots with final data
                 if bot_id in self.active_bots:
-                    del self.active_bots[bot_id]
+                    self.active_bots[bot_id].update({
+                        "status": "completed",
+                        "mp4_url": mp4_url,
+                        "speakers": speakers,
+                        "transcript": transcript
+                    })
+                
+                # Send websocket completion
+                from app.core.websocket_manager import manager
+                await manager.send_status_update("complete", {
+                    "bot_id": bot_id,
+                    "meeting_url": meeting.meeting_url if meeting else None,
+                    "mp4_url": mp4_url,
+                    "speakers": speakers,
+                    "message": "Meeting completed successfully"
+                })
                 
                 return {
                     "status": "success",
                     "event": "complete",
-                    "message": "Meeting completed successfully"
+                    "mp4_url": mp4_url,
+                    "speakers": speakers
                 }
             
             elif event == "failed":
                 error_code = event_data.get("error", "UnknownError")
+                error_details = {
+                    "code": error_code,
+                    "message": event_data.get("error_message", ""),
+                    "type": event_data.get("error_type", "")
+                }
                 
                 if meeting:
                     meeting.status = f"failed_{error_code}"
                     meeting.ended_at = datetime.utcnow()
+                    meeting.error_details = json.dumps(error_details)
                     await db.commit()
                 
-                # Remove from active bots
+                # Update active bots
                 if bot_id in self.active_bots:
-                    del self.active_bots[bot_id]
+                    self.active_bots[bot_id].update({
+                        "status": f"failed_{error_code}",
+                        "error_details": error_details
+                    })
+                
+                # Send websocket failure
+                from app.core.websocket_manager import manager
+                await manager.send_status_update("failed", {
+                    "bot_id": bot_id,
+                    "meeting_url": meeting.meeting_url if meeting else None,
+                    "error_code": error_code,
+                    "error_details": error_details,
+                    "message": f"Meeting failed: {error_code}"
+                })
                 
                 return {
                     "status": "error",
                     "event": "failed",
-                    "error_code": error_code
+                    "error_code": error_code,
+                    "error_details": error_details
                 }
             
             return {

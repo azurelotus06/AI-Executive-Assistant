@@ -1,9 +1,32 @@
 import React, { useState, useEffect } from 'react';
-import { Phone, PhoneOff, Users, AlertCircle, CheckCircle } from 'lucide-react';
+import { 
+  Phone, 
+  PhoneOff, 
+  Users, 
+  AlertCircle, 
+  CheckCircle,
+  Download,
+  Clock,
+  Mic
+} from 'lucide-react';
 import { joinMeeting, leaveMeeting, wsService } from '../services/api';
 
 interface MeetingPanelProps {
   onStatusChange?: (status: string) => void;
+}
+
+interface StatusDetails {
+  code: string;
+  created_at?: string;
+  start_time?: string;
+  error_message?: string;
+  error_type?: string;
+}
+
+interface ErrorDetails {
+  code?: string;
+  message?: string;
+  type?: string;
 }
 
 export const MeetingPanel: React.FC<MeetingPanelProps> = ({ onStatusChange }) => {
@@ -13,6 +36,10 @@ export const MeetingPanel: React.FC<MeetingPanelProps> = ({ onStatusChange }) =>
   const [meetingStatus, setMeetingStatus] = useState<string>('idle');
   const [error, setError] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string>('');
+  const [statusDetails, setStatusDetails] = useState<StatusDetails | null>(null);
+  const [recordingUrl, setRecordingUrl] = useState<string | null>(null);
+  const [speakers, setSpeakers] = useState<string[]>([]);
+  const [errorDetails, setErrorDetails] = useState<ErrorDetails | null>(null);
 
   // WebSocket status updates
   useEffect(() => {
@@ -146,13 +173,63 @@ export const MeetingPanel: React.FC<MeetingPanelProps> = ({ onStatusChange }) =>
         </div>
 
         {/* Status Message */}
-          {statusMessage && (
+        {statusMessage && (
           <div className={`p-3 rounded-md text-sm ${
-            meetingStatus === 'in_call_recording' ? 'bg-green-50 text-green-800' :
-            meetingStatus && meetingStatus.startsWith('failed_') ? 'bg-red-50 text-red-800' :
+            statusDetails?.code === 'in_call_recording' ? 'bg-green-50 text-green-800' :
+            statusDetails?.code === 'complete' ? 'bg-blue-50 text-blue-800' :
+            ['failed', 'bot_rejected', 'bot_removed', 'waiting_room_timeout', 'invalid_meeting_url', 'meeting_error'].includes(statusDetails?.code || '') ? 
+              'bg-red-50 text-red-800' :
             'bg-blue-50 text-blue-800'
           }`}>
-            {statusMessage}
+            <div className="font-medium">{statusMessage}</div>
+            {statusDetails?.created_at && (
+              <div className="text-xs mt-1 flex items-center gap-1">
+                <Clock className="w-3 h-3" />
+                {new Date(statusDetails.created_at).toLocaleString()}
+              </div>
+            )}
+            {errorDetails && (
+              <div className="mt-2 text-xs">
+                {errorDetails.message && <p>Error: {errorDetails.message}</p>}
+                {errorDetails.type && <p>Type: {errorDetails.type}</p>}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Recording URL */}
+        {recordingUrl && (
+          <div className="p-3 bg-green-50 text-green-800 rounded-md text-sm">
+            <div className="font-medium flex items-center gap-2">
+              <Download className="w-4 h-4" />
+              Recording Available
+            </div>
+            <a 
+              href={recordingUrl} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-xs mt-1 block underline truncate"
+            >
+              {recordingUrl}
+            </a>
+            <p className="text-xs mt-1 text-green-600">
+              Note: This URL expires in 2 hours
+            </p>
+          </div>
+        )}
+
+        {/* Speakers List */}
+        {speakers.length > 0 && (
+          <div className="p-3 bg-blue-50 text-blue-800 rounded-md text-sm">
+            <div className="font-medium flex items-center gap-2">
+              <Mic className="w-4 h-4" />
+              Speakers
+            </div>
+            <ul className="mt-1 text-xs">
+              {speakers.map((speaker, i) => (
+                <li key={i}>{speaker}</li>
+              ))}
+            </ul>
           </div>
         )}
 
