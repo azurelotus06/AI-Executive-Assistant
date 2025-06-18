@@ -9,7 +9,7 @@ import {
   Clock,
   Mic
 } from 'lucide-react';
-import { joinMeeting, leaveMeeting, wsService } from '../services/api';
+import { joinMeeting, leaveMeeting, getMeetingStatus, wsService } from '../services/api';
 
 interface MeetingPanelProps {
   onStatusChange?: (status: string) => void;
@@ -89,6 +89,45 @@ export const MeetingPanel: React.FC<MeetingPanelProps> = ({ onStatusChange }) =>
       wsService.off('status', handleStatusUpdate);
     };
   }, [onStatusChange]);
+
+  // Polling for MeetingBass webhook status
+  useEffect(() => {
+    if (!botId) return;
+
+    const pollInterval = setInterval(async () => {
+      try {
+        const response = await getMeetingStatus(botId);
+        if (response.success && response.bot_status) {
+          const status = response.bot_status.status;
+          setMeetingStatus(status);
+          
+          // Update status details if available
+          if (response.bot_status.status_details) {
+            setStatusDetails(response.bot_status.status_details);
+          }
+
+          // Update recording URL if available
+          if (response.bot_status.mp4_url) {
+            setRecordingUrl(response.bot_status.mp4_url);
+          }
+
+          // Update speakers if available
+          if (response.bot_status.speakers) {
+            setSpeakers(response.bot_status.speakers);
+          }
+
+          // Update error details if available
+          if (response.bot_status.error_details) {
+            setErrorDetails(response.bot_status.error_details);
+          }
+        }
+      } catch (err) {
+        console.error('Error polling meeting status:', err);
+      }
+    }, 1500); // Poll every 1.5 seconds
+
+    return () => clearInterval(pollInterval);
+  }, [botId]);
 
   const handleJoinMeeting = async () => {
     if (!meetingUrl.trim()) {

@@ -35,7 +35,7 @@ class MeetingBaaSService:
     async def join_meeting(
         self, 
         meeting_url: str,
-        bot_name: str = "AI Executive Assistant",
+        bot_name: str = "Jarvis",
         db: AsyncSession = None
     ) -> Dict[str, Any]:
         """Join a meeting with a bot"""
@@ -77,7 +77,7 @@ class MeetingBaaSService:
                 "meeting_url": meeting_url,
                 "bot_name": bot_name,
                 "bot_image": None,
-                "entry_message": "AI Executive Assistant has joined to provide real-time insights",
+                "entry_message": "Jarvis has joined to provide real-time insights",
                 "recording_mode": "speaker_view",
                 "reserved": False,
                 "speech_to_text": {

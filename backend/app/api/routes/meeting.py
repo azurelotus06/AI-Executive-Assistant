@@ -88,6 +88,20 @@ async def get_meeting_status(
         result = await meeting_service.get_bot_status(bot_id)
         
         if result["status"] == "error":
+            # Check if we have local status
+            from app.models.conversation import Meeting
+            from sqlalchemy import select
+            meeting = (await db.execute(
+                select(Meeting).where(Meeting.bot_id == bot_id)
+            )).scalar_one_or_none()
+            if meeting:
+                return MeetingStatusResponse(
+                    bot_id=bot_id,
+                    status=meeting.status or "unknown",
+                    meeting_url=meeting.meeting_url or "",
+                    joined_at=str(meeting.started_at) if meeting.started_at else "",
+                    duration=meeting.duration or 0
+                )
             raise HTTPException(status_code=404, detail=result["message"])
         
         bot_data = result["bot_data"]
@@ -168,9 +182,12 @@ async def get_meeting_transcripts(
     """Get transcripts for a specific meeting"""
     try:
         from app.models.conversation import Meeting
+        from sqlalchemy import select
         
         # Get meeting from database
-        meeting = await db.get(Meeting, bot_id)
+        meeting = (await db.execute(
+            select(Meeting).where(Meeting.bot_id == bot_id)
+        )).scalar_one_or_none()
         
         if not meeting:
             raise HTTPException(status_code=404, detail="Meeting not found")

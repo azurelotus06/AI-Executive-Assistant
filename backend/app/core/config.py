@@ -51,6 +51,16 @@ class Settings(BaseSettings):
     # Logging
     log_level: str = Field("INFO", env="LOG_LEVEL")
     
+    # Speech-to-Text Configuration
+    class SpeechToTextConfig(BaseSettings):
+        provider: str = "Default"
+        api_key: Optional[str] = None
+
+    speech_to_text: SpeechToTextConfig = Field(
+        default_factory=SpeechToTextConfig,
+        env="SPEECH_TO_TEXT_CONFIG"
+    )
+    
     class Config:
         env_file = ".env"
         case_sensitive = False

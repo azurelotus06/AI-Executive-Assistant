@@ -208,6 +208,28 @@ async def reset_system() -> Dict[str, Any]:
         logger.error(f"Error resetting system: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.get("/meeting-status/{bot_id}")
+async def get_meeting_status(bot_id: str) -> Dict[str, Any]:
+    """Get current meeting status for a bot"""
+    try:
+        from app.services.meeting_service import meeting_service
+        status = await meeting_service.get_bot_status(bot_id)
+        
+        if status["status"] == "success":
+            return {
+                "success": True,
+                "bot_status": status["bot_data"]
+            }
+        else:
+            return {
+                "success": False,
+                "message": status["message"]
+            }
+            
+    except Exception as e:
+        logger.error(f"Error getting meeting status: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.get("/available-voices")
 async def get_available_voices() -> Dict[str, Any]:
     """Get available TTS voices"""

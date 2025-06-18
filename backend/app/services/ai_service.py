@@ -10,7 +10,7 @@ from app.core.config import settings
 logger = logging.getLogger(__name__)
 
 class AIService:
-    """Handles AI-powered conversation analysis and response generation"""
+    """Handles AI-powered conversation analysis and response generation for Jarvis"""
     
     def __init__(self):
         self.client = AsyncOpenAI(api_key=settings.openai_api_key)
@@ -25,7 +25,7 @@ class AIService:
         
     def _build_system_prompt(self) -> str:
         """Build the system prompt for the AI assistant"""
-        return """You are an AI Executive Assistant participating in a Zoom meeting. Your role is to:
+        return """You are Jarvis, an AI assistant participating in a Zoom meeting. Your role is to:
 
 1. **Listen Actively**: Analyze conversations in real-time and understand context, key points, and meeting dynamics.
 
@@ -218,8 +218,8 @@ Respond with JSON only, no additional text.
             # If AI decides to speak, update timing
             if ai_response.get("should_speak", False):
                 self.last_response_time = datetime.now()
-                self._add_to_conversation_history("AI Assistant", ai_response.get("response", ""))
-                logger.info(f"AI decided to speak: {ai_response.get('response', '')}")
+                self._add_to_conversation_history("Jarvis", ai_response.get("response", ""))
+                logger.info(f"Jarvis decided to speak: {ai_response.get('response', '')}")
             else:
                 logger.info(f"AI decided not to speak: {ai_response.get('reasoning', 'No reason provided')}")
             
@@ -260,7 +260,7 @@ As an AI Executive Assistant, provide a helpful response to the user's request. 
             
             # Add to conversation history
             self._add_to_conversation_history("User", user_prompt)
-            self._add_to_conversation_history("AI Assistant", ai_response)
+            self._add_to_conversation_history("Jarvis", ai_response)
             
             return ai_response
             
@@ -274,7 +274,7 @@ As an AI Executive Assistant, provide a helpful response to the user's request. 
             return {"summary": "No conversation history", "key_points": [], "action_items": []}
         
         total_messages = len(self.conversation_history)
-        ai_responses = len([msg for msg in self.conversation_history if msg["speaker"] == "AI Assistant"])
+        ai_responses = len([msg for msg in self.conversation_history if msg["speaker"] == "Jarvis"])
         
         # Extract recent key points (simplified)
         recent_messages = self.conversation_history[-5:]
