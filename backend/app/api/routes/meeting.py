@@ -76,51 +76,6 @@ async def leave_meeting(bot_id: str) -> Dict[str, Any]:
         logger.error(f"Error leaving meeting: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
-
-@router.get("/status/{bot_id}", response_model=MeetingStatusResponse)
-async def get_meeting_status(
-    bot_id: str,
-    db: AsyncSession = Depends(get_db)
-) -> MeetingStatusResponse:
-    """Get the status of a meeting bot"""
-    try:
-        # Get status from service
-        result = await meeting_service.get_bot_status(bot_id)
-        
-        if result["status"] == "error":
-            # Check if we have local status
-            from app.models.conversation import Meeting
-            from sqlalchemy import select
-            meeting = (await db.execute(
-                select(Meeting).where(Meeting.bot_id == bot_id)
-            )).scalar_one_or_none()
-            if meeting:
-                return MeetingStatusResponse(
-                    bot_id=bot_id,
-                    status=meeting.status or "unknown",
-                    meeting_url=meeting.meeting_url or "",
-                    joined_at=str(meeting.started_at) if meeting.started_at else "",
-                    duration=meeting.duration or 0
-                )
-            raise HTTPException(status_code=404, detail=result["message"])
-        
-        bot_data = result["bot_data"]
-        
-        return MeetingStatusResponse(
-            bot_id=bot_id,
-            status=bot_data.get("status", "unknown"),
-            meeting_url=bot_data.get("meeting_url", ""),
-            joined_at=bot_data.get("created_at", ""),
-            duration=bot_data.get("duration", 0)
-        )
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error getting meeting status: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
 @router.get("/active")
 async def get_active_meetings() -> List[Dict[str, Any]]:
     """Get list of active meeting bots"""
@@ -138,6 +93,7 @@ async def meeting_webhook(
 ) -> Dict[str, Any]:
     """Handle webhook events from MeetingBaaS"""
     try:
+        logger.info("Webhook Event")
         logger.info(f"Received webhook event: {event.event}")
         
         # Process webhook

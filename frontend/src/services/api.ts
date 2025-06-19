@@ -287,11 +287,6 @@ export const meetingAPI = {
     return response.data;
   },
   
-  getStatus: async (botId: string) => {
-    const response = await api.get(`/api/meeting/status/${botId}`);
-    return response.data;
-  },
-  
   getActiveMeetings: async () => {
     const response = await api.get('/api/meeting/active');
     return response.data;
@@ -306,7 +301,47 @@ export const meetingAPI = {
 // Export meeting functions for component use
 export const joinMeeting = meetingAPI.join;
 export const leaveMeeting = meetingAPI.leave;
-export const getMeetingStatus = meetingAPI.getStatus;
+
+export const getMeetingStatus = async (botId?: string) => {
+  const activeMeetings = await meetingAPI.getActiveMeetings();
+  
+  if (botId) {
+    const bot = activeMeetings.find((m: any) => m.bot_id === botId);
+    if (!bot) {
+      return { success: false, message: 'Bot not found' };
+    }
+    
+    return {
+      success: true,
+      bot_status: {
+        status: bot.status,
+        status_details: {
+          code: bot.status,
+          created_at: bot.created_at,
+          start_time: bot.start_time
+        },
+        mp4_url: bot.mp4_url,
+        speakers: bot.speakers || [],
+        error_details: bot.error_details || null
+      }
+    };
+  }
+
+  return {
+    success: true,
+    bot_status: activeMeetings.map((m: any) => ({
+      status: m.status,
+      status_details: {
+        code: m.status,
+        created_at: m.created_at,
+        start_time: m.start_time
+      },
+      mp4_url: m.mp4_url,
+      speakers: m.speakers || [],
+      error_details: m.error_details || null
+    }))
+  };
+};
 
 // Export a singleton instance
 export const wsService = new WebSocketService();

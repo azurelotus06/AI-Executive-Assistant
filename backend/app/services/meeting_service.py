@@ -8,6 +8,7 @@ import logging
 from datetime import datetime
 from typing import Optional, Dict, List, Any
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 from app.core.config import settings
 from app.models.database import get_db
@@ -69,8 +70,10 @@ class MeetingBaaSService:
                 }
             
             # Configure webhook and WebSocket URLs
-            webhook_url = f"https://{self.webhook_host}/api/meeting/webhook"
-            websocket_url = f"wss://{self.webhook_host}/ws/meeting"
+            webhook_url = f"https://{self.webhook_host}/api/meeting/webhook"  # Receives status updates from MeetingBaaS
+            websocket_url = f"wss://{self.webhook_host}/ws/meeting"  # For real-time audio streaming
+            print(webhook_url)
+            print(websocket_url)
             
             # Prepare bot configuration
             data = {
@@ -188,32 +191,6 @@ class MeetingBaaSService:
                 "message": error_msg
             }
     
-    async def get_bot_status(self, bot_id: str) -> Dict[str, Any]:
-        """Get the status of a bot"""
-        try:
-            response = requests.get(
-                f"{self.base_url}/bots/{bot_id}",
-                headers=self._get_headers()
-            )
-            
-            if response.status_code == 200:
-                bot_data = response.json()
-                return {
-                    "status": "success",
-                    "bot_data": bot_data
-                }
-            else:
-                return {
-                    "status": "error",
-                    "message": f"Failed to get bot status: {response.text}"
-                }
-                
-        except Exception as e:
-            return {
-                "status": "error",
-                "message": f"Error getting bot status: {str(e)}"
-            }
-    
     async def fetch_meeting_data(self, bot_id: str) -> Optional[Dict[str, Any]]:
         """Fetch meeting data including transcripts"""
         try:
@@ -259,8 +236,11 @@ class MeetingBaaSService:
             
             logger.info(f"Processing webhook event: {event} for bot {bot_id}")
             
-            # Get meeting from database
-            meeting = await db.get(Meeting, bot_id)
+            # Get meeting from database by bot_id
+            result = await db.execute(
+                select(Meeting).where(Meeting.bot_id == bot_id)
+            )
+            meeting = result.scalar_one_or_none()
             
             # Handle different event types
             if event == "bot.status_change":
