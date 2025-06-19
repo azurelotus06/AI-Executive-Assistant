@@ -158,20 +158,49 @@ Adjust audio recording parameters in `src/hooks/useAudioRecorder.ts`:
 
 ## 🚀 Deployment
 
+### Development Deployment with Ngrok
+
+1. Start the development server:
+```bash
+npm start
+```
+
+2. In another terminal, expose the frontend:
+```bash
+ngrok http 3000
+```
+
+3. Access the frontend via the ngrok URL (e.g., `https://abc123.ngrok-free.app`)
+
+### Production Deployment with Ngrok
+
 1. Build the production bundle:
 ```bash
 npm run build
 ```
 
-2. Serve the `build/` directory using any static file server:
+2. Serve the production build:
 ```bash
-# Using serve
-npx serve -s build
-
-# Using nginx, apache, or any other web server
+npx serve -s build -l 3000
 ```
 
-3. Ensure the backend API URL is correctly configured for production.
+3. In another terminal, expose the frontend:
+```bash
+ngrok http 3000
+```
+
+4. Access the frontend via the ngrok URL
+
+### Important Notes
+- Update `API_BASE_URL` in `src/services/api.ts` to point to your backend ngrok URL
+- For persistent subdomains (optional):
+```bash
+ngrok http 3000 --subdomain your-subdomain
+```
+- To monitor requests:
+```bash
+ngrok http 3000 --log=stdout
+```
 
 ## 🐛 Troubleshooting
 

@@ -141,6 +141,36 @@ cd backend
 uv run uvicorn main:app --host 0.0.0.0 --port 8000 --workers 4
 ```
 
+### Ngrok Deployment
+
+To expose your backend using ngrok:
+
+1. First start the backend server:
+```bash
+cd backend
+uv run uvicorn main:app --host 0.0.0.0 --port 8000
+```
+
+2. In another terminal, expose the backend:
+```bash
+ngrok http 8000
+```
+
+3. Note the ngrok URL (e.g., `https://abc123.ngrok-free.app`) and:
+   - Update frontend's API_BASE_URL in `src/services/api.ts`
+   - Update any webhook URLs in your Zoom integration
+   - Share this URL for external access
+
+4. For persistent subdomains (optional):
+```bash
+ngrok http 8000 --subdomain your-subdomain
+```
+
+5. To monitor requests:
+```bash
+ngrok http 8000 --log=stdout
+```
+
 ## API Documentation
 
 Once the server is running, you can access:

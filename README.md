@@ -261,6 +261,47 @@ curl -X POST http://localhost:8000/api/control/test-pipeline
 
 ## 🚀 Deployment
 
+### Ngrok Deployment
+
+To expose your local development environment using ngrok:
+
+1. **Install ngrok** (if not already installed):
+   ```bash
+   # Download from https://ngrok.com/download
+   # Or use the included ngrok.exe on Windows
+   ```
+
+2. **Backend Deployment**:
+   ```bash
+   cd backend
+   # Start backend server first
+   python -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+   
+   # In another terminal, expose backend
+   ngrok http 8000
+   ```
+   
+   Note the ngrok URL (e.g., `https://abc123.ngrok-free.app`) and update:
+   - Frontend's API_BASE_URL in `src/services/api.ts`
+   - Any webhook URLs in your Zoom integration
+
+3. **Frontend Deployment**:
+   ```bash
+   cd frontend
+   # Build production version
+   npm run build
+   
+   # Serve frontend
+   npx serve -s build -l 3000
+   
+   # In another terminal, expose frontend
+   ngrok http 3000
+   ```
+
+4. **Access the Application**:
+   - Frontend: Use the ngrok URL for port 3000
+   - Backend: Use the ngrok URL for port 8000 for API calls
+
 ### Production Considerations
 
 1. Use environment-specific configurations
