@@ -105,31 +105,6 @@ async def meeting_webhook(
         logger.error(f"Error processing webhook: {str(e)}")
         return {"status": "error", "message": str(e)}
 
-
-@router.websocket("/ws/meeting")
-async def websocket_meeting_audio(websocket: WebSocket):
-    """WebSocket endpoint for real-time audio streaming from MeetingBaaS"""
-    await websocket.accept()
-    
-    # Generate session ID
-    session_id = str(uuid.uuid4())
-    logger.info(f"WebSocket connection accepted for meeting audio. Session: {session_id}")
-    
-    try:
-        # Handle audio stream
-        await audio_handler.handle_websocket(websocket)
-        
-    except WebSocketDisconnect:
-        logger.info(f"WebSocket disconnected for session {session_id}")
-    except Exception as e:
-        logger.error(f"WebSocket error: {str(e)}")
-    finally:
-        try:
-            await websocket.close()
-        except:
-            pass
-
-
 @router.get("/transcripts/{bot_id}")
 async def get_meeting_transcripts(
     bot_id: str,

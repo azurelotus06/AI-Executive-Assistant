@@ -74,6 +74,8 @@ class MeetingBaaSService:
             websocket_url = f"wss://{self.webhook_host}/ws/meeting"  # For real-time audio streaming
             print(webhook_url)
             print(websocket_url)
+            print(settings.speech_to_text)
+            print(f"{websocket_url}/input")
             
             # Prepare bot configuration
             data = {
@@ -83,15 +85,14 @@ class MeetingBaaSService:
                 "entry_message": "Jarvis has joined to provide real-time insights",
                 "recording_mode": "speaker_view",
                 "reserved": False,
-                "speech_to_text": {
-                    "provider": "Default"
-                },
+                "speech_to_text": settings.speech_to_text,
                 "automatic_leave": {
                     "waiting_room_timeout": 600
                 },
                 "streaming": {
                     "audio_frequency": "16khz",
-                    "output": websocket_url
+                    "input": f"{websocket_url}/input",
+                    "output": f"{websocket_url}/output"
                 },
                 "webhook_url": webhook_url
             }

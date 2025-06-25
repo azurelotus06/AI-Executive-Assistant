@@ -40,7 +40,40 @@ class RealTimeAudioHandler:
         except Exception as e:
             logger.error(f"Error loading Whisper model: {e}")
 
-    async def handle_websocket(self, websocket: WebSocket):
+    async def handle_websocket_input(self, websocket: WebSocket):
+        """Handle incoming WebSocket connection from MeetingBaaS"""
+        await websocket.accept()
+        logger.info("WebSocket input connection accepted for real-time audio")
+        
+        try:
+            while True:
+                message = await websocket.receive()
+                print("Websocket input message: ", list(message.keys()))
+                print("Websocket message: ", message)
+                
+                # if message.get("type") == "websocket.disconnect":
+                #     logger.info("WebSocket disconnected by client")
+                #     break
+                    
+                # if message.get("text"):
+                #     await self._handle_text_message(message["text"])
+                # elif message.get("bytes") and self.current_speaker:
+                #     await self._handle_audio_data(
+                #         self.current_speaker, 
+                #         message["bytes"]
+                #     )
+
+        except Exception as e:
+            logger.error(f"WebSocket error: {e}")
+        finally:
+            try:
+                if websocket.client_state != "disconnected":
+                    await websocket.close()
+                    logger.info("WebSocket connection closed")
+            except Exception as e:
+                logger.error(f"Error closing WebSocket: {e}")
+                
+    async def handle_websocket_output(self, websocket: WebSocket):
         """Handle incoming WebSocket connection from MeetingBaaS"""
         await websocket.accept()
         logger.info("WebSocket connection accepted for real-time audio")
@@ -48,6 +81,7 @@ class RealTimeAudioHandler:
         try:
             while True:
                 message = await websocket.receive()
+                print("Websocket output message: ", list(message.keys()))
                 
                 if message.get("type") == "websocket.disconnect":
                     logger.info("WebSocket disconnected by client")
@@ -64,8 +98,12 @@ class RealTimeAudioHandler:
         except Exception as e:
             logger.error(f"WebSocket error: {e}")
         finally:
-            await websocket.close()
-            logger.info("WebSocket connection closed")
+            try:
+                if websocket.client_state != "disconnected":
+                    await websocket.close()
+                    logger.info("WebSocket connection closed")
+            except Exception as e:
+                logger.error(f"Error closing WebSocket: {e}")
 
     async def _handle_text_message(self, message_text: str):
         """Handle text messages containing speaker metadata"""

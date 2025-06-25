@@ -52,12 +52,8 @@ class Settings(BaseSettings):
     log_level: str = Field("INFO", env="LOG_LEVEL")
     
     # Speech-to-Text Configuration
-    class SpeechToTextConfig(BaseSettings):
-        provider: str = "Default"
-        api_key: Optional[str] = None
-
-    speech_to_text: SpeechToTextConfig = Field(
-        default_factory=SpeechToTextConfig,
+    speech_to_text: dict = Field(
+        default={"provider": "Gladia", "api_key": "0c9a10ce-3d71-41e2-8c58-a4a5d6ea9936"},
         env="SPEECH_TO_TEXT_CONFIG"
     )
     
