@@ -8,7 +8,8 @@ import logging
 from datetime import datetime
 from typing import Optional, Dict, List, Any
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, update
+from sqlalchemy.util import greenlet_spawn
 
 from app.core.config import settings
 from app.models.database import get_db
@@ -90,8 +91,8 @@ class MeetingBaaSService:
                     "waiting_room_timeout": 600
                 },
                 "streaming": {
-                    "audio_frequency": "16khz",
-                    "input": f"{websocket_url}/input",
+                    "audio_frequency": "24khz",
+                    # "input": f"{websocket_url}/input",
                     "output": f"{websocket_url}/output"
                 },
                 "webhook_url": webhook_url
@@ -118,15 +119,16 @@ class MeetingBaaSService:
                 
                 # Save to database if session provided
                 if db:
-                    meeting = Meeting(
-                        bot_id=bot_id,
-                        meeting_url=meeting_url,
-                        bot_name=bot_name,
-                        status="joining_call",
-                        started_at=datetime.utcnow()
-                    )
-                    db.add(meeting)
-                    await db.commit()
+                    async with db.begin():
+                        meeting = Meeting(
+                            bot_id=bot_id,
+                            meeting_url=meeting_url,
+                            bot_name=bot_name,
+                            status="joining_call",
+                            started_at=datetime.utcnow()
+                        )
+                        db.add(meeting)
+                        await db.commit()
                 
                 logger.info(f"Bot {bot_id} joining meeting: {meeting_url}")
                 
@@ -213,6 +215,37 @@ class MeetingBaaSService:
         except Exception as e:
             logger.error(f"Error fetching meeting data: {str(e)}")
             return None
+            
+    def get_speakers(self, bot_id: str) -> Dict[str, Any]:
+        """Get all speakers and current speaker for a meeting"""
+        try:
+            response = requests.get(
+                f"{self.base_url}/bots/{bot_id}/speakers",
+                headers=self._get_headers()
+            )
+            
+            if response.status_code == 200:
+                meeting_data = response.json()
+                return {
+                    "status": "success",
+                    "speakers": meeting_data.get("speakers", []),
+                    "current_speaker": meeting_data.get("currentSpeaker")
+                }
+            else:
+                error_msg = f"Failed to get speakers: {response.text}"
+                logger.error(error_msg)
+                return {
+                    "status": "error",
+                    "message": error_msg
+                }
+                
+        except Exception as e:
+            error_msg = f"Error getting speakers: {str(e)}"
+            logger.error(error_msg)
+            return {
+                "status": "error",
+                "message": error_msg
+            }
     
     async def process_webhook(self, webhook_data: Dict[str, Any], db: AsyncSession) -> Dict[str, Any]:
         """Process webhook events from MeetingBaaS"""
@@ -263,8 +296,14 @@ class MeetingBaaSService:
                 
                 # Update database
                 if meeting:
-                    meeting.status = status_code
-                    meeting.status_details = json.dumps(status_details)
+                    await db.execute(
+                        update(Meeting)
+                        .where(Meeting.bot_id == bot_id)
+                        .values(
+                            status=status_code,
+                            status_details=json.dumps(status_details)
+                        )
+                    )
                     await db.commit()
                 
                 # Send websocket status update
@@ -275,6 +314,22 @@ class MeetingBaaSService:
                     "status_details": status_details,
                     "message": f"Status changed to {status_code}"
                 })
+
+                # Initialize Gladia when call recording starts
+                if status_code == "in_call_recording":
+                    from app.services.realtime_audio_handler import audio_handler
+                    if not settings.GLADIA_API_KEY:
+                        logger.warning("GLADIA_API_KEY not configured")
+                        return {
+                            "status": "success",
+                            "event": "status_change",
+                            "new_status": status_code,
+                            "warning": "Gladia not initialized - missing API key"
+                        }
+                    
+                    success = await audio_handler.initialize_gladia()
+                    if not success:
+                        logger.error("Failed to initialize Gladia")
                 
                 return {
                     "status": "success",
@@ -289,11 +344,17 @@ class MeetingBaaSService:
                 transcript = event_data.get("transcript", [])
                 
                 if meeting:
-                    meeting.status = "completed"
-                    meeting.ended_at = datetime.utcnow()
-                    meeting.recording_url = mp4_url
-                    meeting.speakers = json.dumps(speakers)
-                    meeting.transcript = json.dumps(transcript)
+                    await db.execute(
+                        update(Meeting)
+                        .where(Meeting.bot_id == bot_id)
+                        .values(
+                            status="completed",
+                            ended_at=datetime.utcnow(),
+                            recording_url=mp4_url,
+                            speakers=json.dumps(speakers),
+                            transcript=json.dumps(transcript)
+                        )
+                    )
                     await db.commit()
                 
                 # Update active bots with final data
@@ -304,6 +365,13 @@ class MeetingBaaSService:
                         "speakers": speakers,
                         "transcript": transcript
                     })
+
+                # Clean up Gladia session
+                from app.services.realtime_audio_handler import audio_handler
+                if audio_handler.gladia_client:
+                    await audio_handler.gladia_client.end_session()
+                    audio_handler.is_gladia_ready = False
+                    logger.info("Gladia session cleaned up after meeting completion")
                 
                 # Send websocket completion
                 from app.core.websocket_manager import manager
@@ -331,9 +399,15 @@ class MeetingBaaSService:
                 }
                 
                 if meeting:
-                    meeting.status = f"failed_{error_code}"
-                    meeting.ended_at = datetime.utcnow()
-                    meeting.error_details = json.dumps(error_details)
+                    await db.execute(
+                        update(Meeting)
+                        .where(Meeting.bot_id == bot_id)
+                        .values(
+                            status=f"failed_{error_code}",
+                            ended_at=datetime.utcnow(),
+                            error_details=json.dumps(error_details)
+                        )
+                    )
                     await db.commit()
                 
                 # Update active bots

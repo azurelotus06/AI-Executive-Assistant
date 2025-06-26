@@ -6,6 +6,7 @@ import logging
 from typing import Optional, Callable, Awaitable, Union, Any
 import aiohttp
 import websockets
+from websockets.legacy.client import WebSocketClientProtocol
 
 logger = logging.getLogger(__name__)
 
@@ -13,7 +14,7 @@ class GladiaClient:
     def __init__(self, api_key: str):
         self.api_key = api_key
         self.api_url = "https://api.gladia.io"
-        self.ws: Optional[Any] = None  # WebSocket connection
+        self.ws: Optional[WebSocketClientProtocol] = None  # WebSocket connection
         self.session_id: Optional[str] = None
         self.on_transcription_callback: Optional[Callable[[str, bool], Awaitable[None]]] = None
         
@@ -148,8 +149,9 @@ class GladiaClient:
     async def connect_websocket(self, url: str) -> bool:
         """Connect to Gladia's WebSocket for real-time transcription"""
         try:
+            logger.info(f"Connecting to Gladia WebSocket at: {url}")
             self.ws = await websockets.connect(url)
-            logger.info("Connected to Gladia WebSocket")
+            logger.info(f"Successfully connected to Gladia WebSocket: {self.ws}")
             
             # Start listening for messages
             asyncio.create_task(self._listen_to_websocket())
@@ -166,8 +168,11 @@ class GladiaClient:
                 logger.error("WebSocket is None, cannot listen")
                 return
                 
+            logger.info("Starting WebSocket message listener")
             async for message in self.ws:
                 try:
+                    logger.info("Received WebSocket message")
+                    logger.debug(f"Received WebSocket message: {message[:200]}...")  # Log first 200 chars
                     data = json.loads(message)
                     
                     if data.get("type") == "transcript":
@@ -177,29 +182,39 @@ class GladiaClient:
                         text = utterance.get("text", "")
                         
                         if text:
-                            if is_final:
-                                logger.info(f"Transcription (final): {text}")
+                            logger.info(f"Received transcription (is_final={is_final}): {text}")
                             
                             if self.on_transcription_callback:
                                 await self.on_transcription_callback(text, is_final)
+                        else:
+                            logger.warning("Received empty transcription")
+                    else:
+                        logger.info(f"Received non-transcript message: {data.get('type')}")
                                 
                 except json.JSONDecodeError:
-                    logger.error(f"Failed to parse message: {message}")
+                    logger.error(f"Failed to parse message: {message[:200]}...")
                     
-        except websockets.exceptions.ConnectionClosed:
-            logger.info("WebSocket connection closed")
+        except websockets.exceptions.ConnectionClosed as e:
+            logger.error(f"WebSocket connection closed: {e}")
+            logger.error(f"Close code: {e.code}, reason: {e.reason}")
         except Exception as e:
             logger.error(f"Error in WebSocket listener: {e}")
+            if hasattr(e, 'code'):
+                logger.error(f"Error code: {e.code}")
+            if hasattr(e, 'reason'):
+                logger.error(f"Error reason: {e.reason}")
             
     async def send_audio_chunk(self, audio_data: bytes) -> bool:
         """Send audio chunk to Gladia for transcription"""
-        if not self.ws or self.ws.closed:
+        if not self.ws:
             logger.warning("WebSocket not connected, ignoring audio chunk")
             return False
             
         try:
             # Convert audio data to base64
             audio_base64 = base64.b64encode(audio_data).decode('utf-8')
+            chunk_size = len(audio_data)
+            print("chunk_size: ", chunk_size)
             
             # Send audio chunk message
             message = {
@@ -209,11 +224,17 @@ class GladiaClient:
                 }
             }
             
+            logger.info(f"Sending audio chunk (size: {chunk_size} bytes)")
             await self.ws.send(json.dumps(message))
+            logger.debug("Audio chunk sent successfully")
             return True
             
         except Exception as e:
             logger.error(f"Error sending audio chunk to Gladia: {e}")
+            if hasattr(e, 'code'):
+                logger.error(f"Error code: {e.code}")
+            if hasattr(e, 'reason'):
+                logger.error(f"Error reason: {e.reason}")
             return False
             
     def on_transcription(self, callback: Callable[[str, bool], Awaitable[None]]):

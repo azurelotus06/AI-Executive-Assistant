@@ -152,3 +152,25 @@ async def get_meeting_transcripts(
     except Exception as e:
         logger.error(f"Error getting transcripts: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/speakers/{bot_id}")
+async def get_meeting_speakers(bot_id: str) -> Dict[str, Any]:
+    """Get speakers and current speaker for a meeting"""
+    try:
+        result = meeting_service.get_speakers(bot_id)
+        
+        if result["status"] == "error":
+            raise HTTPException(status_code=400, detail=result["message"])
+        
+        return {
+            "bot_id": bot_id,
+            "speakers": result.get("speakers", []),
+            "current_speaker": result.get("current_speaker"),
+            "status": "success"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting speakers: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
