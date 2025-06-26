@@ -5,6 +5,7 @@ import logging
 from app.services.audio_processor import AudioProcessor
 from app.services.ai_service import AIService
 from app.services.tts_service import TTSService
+from app.services.meeting_service import meeting_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -120,13 +121,20 @@ async def emergency_stop() -> Dict[str, Any]:
 async def get_system_status() -> Dict[str, Any]:
     """Get comprehensive system status"""
     try:
+        # Check if we're in a call recording session
+        is_recording = False
+        for bot_data in meeting_service.active_bots.values():
+            if bot_data.get("status") == "in_call_recording":
+                is_recording = True
+                break
+
         return {
             "success": True,
             "system_status": {
                 "audio_processor": {
                     "healthy": audio_processor.is_healthy(),
                     "muted": audio_processor.is_muted,
-                    "recording": audio_processor.is_recording,
+                    "recording": is_recording,
                     "sample_rate": audio_processor.sample_rate
                 },
                 "ai_service": {

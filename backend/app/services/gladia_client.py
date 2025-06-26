@@ -169,8 +169,11 @@ class GladiaClient:
                 return
                 
             logger.info("Starting WebSocket message listener")
-            async for message in self.ws:
+            
+            # Set timeout for receiving messages (600 seconds)
+            while True:
                 try:
+                    message = await asyncio.wait_for(self.ws.recv(), timeout=600)
                     logger.info("Received WebSocket message")
                     logger.debug(f"Received WebSocket message: {message[:200]}...")  # Log first 200 chars
                     data = json.loads(message)
@@ -194,6 +197,11 @@ class GladiaClient:
                 except json.JSONDecodeError:
                     logger.error(f"Failed to parse message: {message[:200]}...")
                     
+        except asyncio.TimeoutError:
+            error_msg = "No audio chunk received for 600s"
+            logger.error(f"ERROR:app.services.gladia_client:Error reason: {error_msg}")
+            if self.on_transcription_callback:
+                await self.on_transcription_callback(error_msg, True)
         except websockets.exceptions.ConnectionClosed as e:
             logger.error(f"WebSocket connection closed: {e}")
             logger.error(f"Close code: {e.code}, reason: {e.reason}")
