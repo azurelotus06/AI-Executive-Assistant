@@ -417,6 +417,14 @@ class MeetingBaaSService:
                         "error_details": error_details
                     })
                 
+                # Handle specific error cases
+                if error_code == "Cannot join meeting: RemovedByHost":
+                    # Automatically leave meeting when removed by host
+                    await self.leave_meeting(bot_id)
+                    message = "Removed by host - left meeting"
+                else:
+                    message = f"Meeting failed: {error_code}"
+
                 # Send websocket failure
                 from app.core.websocket_manager import manager
                 await manager.send_status_update("failed", {
@@ -424,14 +432,15 @@ class MeetingBaaSService:
                     "meeting_url": meeting.meeting_url if meeting else None,
                     "error_code": error_code,
                     "error_details": error_details,
-                    "message": f"Meeting failed: {error_code}"
+                    "message": message
                 })
                 
                 return {
                     "status": "error",
                     "event": "failed",
                     "error_code": error_code,
-                    "error_details": error_details
+                    "error_details": error_details,
+                    "message": message
                 }
             
             return {
