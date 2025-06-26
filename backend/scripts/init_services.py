@@ -12,12 +12,9 @@ async def initialize_services():
         logger.info("Initializing database...")
         await init_db()
         
-        logger.info("Initializing audio handler...")
-        await audio_handler.initialize()
-        
-        logger.info("All services initialized successfully")
+        logger.info("Service initialization completed")
     except Exception as e:
-        logger.error(f"Error initializing services: {e}")
+        logger.error(f"Error initializing services: {str(e)}")
         raise
 
 if __name__ == "__main__":

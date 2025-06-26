@@ -53,9 +53,13 @@ class Settings(BaseSettings):
     
     # Speech-to-Text Configuration
     speech_to_text: dict = Field(
-        default={"provider": "Gladia", "api_key": "0c9a10ce-3d71-41e2-8c58-a4a5d6ea9936"},
+        default={"provider": "Default"},
         env="SPEECH_TO_TEXT_CONFIG"
     )
+    GLADIA_API_KEY: str = Field(..., env="GLADIA_API_KEY")
+    
+    # Development Settings
+    SKIP_GLADIA_INIT: bool = Field(False, env="SKIP_GLADIA_INIT")
     
     class Config:
         env_file = ".env"

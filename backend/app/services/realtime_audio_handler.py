@@ -27,18 +27,12 @@ class RealTimeAudioHandler:
         self.current_speaker: Optional[str] = None
         self.silence_threshold = 0.5  # seconds of silence to trigger processing
         self.processing_interval = 2.0  # max time between processing chunks
-        self.whisper_model = None
+        self.gladia_client = None
+        self.is_gladia_ready = False
+        self.output_websockets: List[WebSocket] = []
+        self.sample_rate = 16000  # Default sample rate for audio processing
         
-    async def initialize(self):
-        """Initialize the handler and load models"""
-        try:
-            import whisper
-            self.whisper_model = whisper.load_model("small")
-            logger.info("Loaded Whisper model for local transcription")
-        except ImportError:
-            logger.warning("Whisper not available, will use API only")
-        except Exception as e:
-            logger.error(f"Error loading Whisper model: {e}")
+    # Removed initialize() method since initialization is now handled in handle_websocket_input
 
     async def handle_websocket_input(self, websocket: WebSocket):
         """Handle incoming WebSocket connection from MeetingBaaS"""
@@ -46,6 +40,40 @@ class RealTimeAudioHandler:
         logger.info("WebSocket input connection accepted for real-time audio")
         
         try:
+            # Initialize Gladia when first connection is established
+            if not self.is_gladia_ready and not getattr(settings, 'SKIP_GLADIA_INIT', False):
+                try:
+                    from app.services.gladia_client import GladiaClient
+                    if not settings.GLADIA_API_KEY:
+                        raise ValueError("GLADIA_API_KEY not configured")
+                        
+                    self.gladia_client = GladiaClient(settings.GLADIA_API_KEY)
+                    self.gladia_client.on_transcription(self._handle_transcription)
+                    
+                    # Initialize with retry logic
+                    max_retries = 3
+                    for attempt in range(max_retries):
+                        try:
+                            success = await self.gladia_client.init_session()
+                            if success:
+                                self.is_gladia_ready = True
+                                logger.info("Gladia initialized successfully")
+                                break
+                            logger.warning(f"Gladia init failed (attempt {attempt+1}/{max_retries})")
+                        except Exception as e:
+                            logger.warning(f"Gladia init error (attempt {attempt+1}/{max_retries}): {str(e)}")
+                            
+                        if attempt < max_retries - 1:
+                            await asyncio.sleep(2 * (attempt + 1))  # Exponential backoff
+                    
+                    if not self.is_gladia_ready:
+                        raise Exception("Failed to initialize Gladia after retries")
+                        
+                except Exception as e:
+                    logger.error(f"Gladia initialization failed: {str(e)}")
+                    await websocket.close()
+                    return
+
             while True:
                 message = await websocket.receive()
                 print("Websocket input message: ", list(message.keys()))
@@ -70,6 +98,12 @@ class RealTimeAudioHandler:
                 if websocket.client_state != "disconnected":
                     await websocket.close()
                     logger.info("WebSocket connection closed")
+                
+                # Clean up Gladia session if no more active connections
+                if self.gladia_client and len(self.output_websockets) == 0:
+                    await self.gladia_client.end_session()
+                    self.is_gladia_ready = False
+                    logger.info("Gladia session cleaned up")
             except Exception as e:
                 logger.error(f"Error closing WebSocket: {e}")
                 
@@ -174,35 +208,63 @@ class RealTimeAudioHandler:
             logger.error(f"Error handling audio data: {e}")
 
     async def _process_audio_segment(self, speaker_id: str, audio_data: bytes) -> Optional[str]:
-        """Process an audio segment and return transcription"""
+        """Process an audio segment using Gladia"""
         try:
-            is_wav = audio_data[:4] == b'RIFF'
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmpfile:
-                tmp_path = tmpfile.name
-                if is_wav:
-                    tmpfile.write(audio_data)
-                else:
-                    self._write_pcm_to_wav(audio_data, tmp_path)
-            
-            try:
-                if self.whisper_model:
-                    result = self.whisper_model.transcribe(tmp_path)
-                    transcript = result.get("text", "").strip()
-                else:
-                    # Fallback to API
-                    transcript = await self.audio_processor.transcribe_audio(tmp_path)
+            if not self.is_gladia_ready or not self.gladia_client:
+                logger.warning("Gladia not ready, skipping audio processing")
+                return None
                 
-                if transcript:
-                    logger.info(f"Speaker {speaker_id}: {transcript}")
-                    return transcript
-                    
-            finally:
-                if os.path.exists(tmp_path):
-                    os.remove(tmp_path)
-                    
+            # Convert to WAV if needed
+            if audio_data[:4] != b'RIFF':
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmpfile:
+                    self._write_pcm_to_wav(audio_data, tmpfile.name)
+                    with open(tmpfile.name, 'rb') as f:
+                        audio_data = f.read()
+                    os.remove(tmpfile.name)
+            
+            # Send to Gladia
+            success = await self.gladia_client.send_audio_chunk(audio_data)
+            if not success:
+                logger.error("Failed to send audio to Gladia")
+                return None
+                
+            return None  # Results will come via callback
+            
         except Exception as e:
             logger.error(f"Error processing audio segment: {e}")
             return None
+            
+    async def _handle_transcription(self, text: str, is_final: bool):
+        """Handle transcription results from Gladia"""
+        try:
+            if not text or not self.current_speaker:
+                return
+                
+            speaker = self.speakers.get(self.current_speaker, {})
+            speaker_name = speaker.get('name', 'Unknown')
+            
+            logger.info(f"Transcription from {speaker_name} ({'final' if is_final else 'partial'}): {text}")
+            print(f"[TRANSCRIPTION] {speaker_name}: {text}")  # Print to console
+            
+            # Broadcast to all output WebSockets
+            message = {
+                "type": "transcription",
+                "speaker_id": self.current_speaker,
+                "speaker_name": speaker_name,
+                "text": text,
+                "is_final": is_final,
+                "timestamp": datetime.now().isoformat()
+            }
+            
+            for ws in self.output_websockets:
+                try:
+                    await ws.send_json(message)
+                except Exception as e:
+                    logger.error(f"Error sending transcription to WebSocket: {e}")
+                    self.output_websockets.remove(ws)
+                    
+        except Exception as e:
+            logger.error(f"Error handling transcription: {e}")
 
     def _write_pcm_to_wav(self, pcm_bytes: bytes, wav_path: str, 
                          sample_rate: int = 16000, sample_width: int = 2, 
@@ -213,6 +275,15 @@ class RealTimeAudioHandler:
             wf.setsampwidth(sample_width)
             wf.setframerate(sample_rate)
             wf.writeframes(pcm_bytes)
+
+    async def cleanup(self):
+        """Clean up resources and close Gladia session"""
+        try:
+            if self.gladia_client:
+                await self.gladia_client.end_session()
+                logger.info("Gladia session ended")
+        except Exception as e:
+            logger.error(f"Error during cleanup: {e}")
 
     async def generate_ai_response(self, transcript: str, context: Dict) -> str:
         """Generate AI response using GPT-4"""

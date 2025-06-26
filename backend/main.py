@@ -156,6 +156,13 @@ async def startup_event():
     from scripts.init_services import initialize_services
     await initialize_services()
 
+@app.on_event("shutdown") 
+async def shutdown_event():
+    """Clean up resources on shutdown"""
+    from app.services.realtime_audio_handler import audio_handler
+    await audio_handler.cleanup()
+    logger.info("Application shutdown complete")
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)
