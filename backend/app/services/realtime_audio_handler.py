@@ -11,6 +11,8 @@ from fastapi import WebSocket
 
 from app.services.audio_processor import AudioProcessor
 from app.services.meeting_service import MeetingBaaSService
+from app.services.ai_service import ai_service
+from app.services.tts_service import tts_service
 from app.core.config import settings
 from app.models.conversation import Meeting
 
@@ -212,9 +214,21 @@ class RealTimeAudioHandler:
                         'text': transcript,
                         'timestamp': current_time
                     })
+                    print("speaker['transcripts']: ", speaker['transcripts'])
                     
-                    # TODO: Send to GPT for analysis
-                    # TODO: Queue TTS response if needed
+                    # Analyze with AI service
+                    ai_response = await ai_service.analyze_conversation(
+                        transcript=transcript,
+                        speaker='Unknown'
+                    )
+                    
+                    if ai_response and ai_response.get('should_speak'):
+                        # Queue TTS response
+                        await tts_service.queue_tts(
+                            text=ai_response['response'],
+                            voice_id=settings.tts_voice_id,
+                            websockets=self.output_websockets
+                        )
 
         except Exception as e:
             logger.error(f"Error handling audio data: {e}")

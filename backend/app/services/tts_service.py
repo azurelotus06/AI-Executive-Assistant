@@ -243,6 +243,32 @@ class TTSService:
                 "success": False,
                 "error": str(e)
             }
+
+    async def queue_tts(self, text: str, voice_id: str, websockets: List[Any]) -> bool:
+        """Queue text for TTS processing and send to WebSockets"""
+        try:
+            if not text or not websockets:
+                return False
+                
+            # Generate speech audio
+            audio_data = await self.generate_executive_speech(text)
+            if not audio_data:
+                return False
+                
+            # Send to all connected WebSockets
+            for ws in websockets:
+                try:
+                    if ws.client_state != "disconnected":
+                        await ws.send_bytes(audio_data)
+                except Exception as e:
+                    logger.error(f"Error sending TTS audio to WebSocket: {e}")
+                    continue
+                    
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error in TTS queue: {e}")
+            return False
     
     async def close(self):
         """Close the HTTP client"""

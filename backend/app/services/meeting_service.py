@@ -286,6 +286,16 @@ class MeetingBaaSService:
                     "error_message": event_data.get("status", {}).get("error_message"),
                     "error_type": event_data.get("status", {}).get("error_type")
                 }
+
+                # Add transcripts if available and in recording state
+                if status_code == "in_call_recording":
+                    from app.services.realtime_audio_handler import audio_handler
+                    if audio_handler.speakers:
+                        transcripts = []
+                        for speaker_id, speaker_data in audio_handler.speakers.items():
+                            if speaker_data.get('transcripts'):
+                                transcripts.extend(speaker_data['transcripts'])
+                        status_details['transcripts'] = transcripts
                 
                 # Update active bots
                 if bot_id in self.active_bots:

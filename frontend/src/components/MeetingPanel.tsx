@@ -16,11 +16,15 @@ interface MeetingPanelProps {
 }
 
 interface StatusDetails {
-  code: string;
+  code?: string;
   created_at?: string;
   start_time?: string;
   error_message?: string;
   error_type?: string;
+  transcripts?: Array<{
+    text: string;
+    timestamp: number;
+  }>;
 }
 
 interface ErrorDetails {
@@ -267,6 +271,26 @@ export const MeetingPanel: React.FC<MeetingPanelProps> = ({ onStatusChange }) =>
             <ul className="mt-1 text-xs">
               {speakers.map((speaker, i) => (
                 <li key={i}>{speaker}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* Transcripts List */}
+        {statusDetails && statusDetails.transcripts && statusDetails.transcripts.length > 0 && (
+          <div className="p-3 bg-purple-50 text-purple-800 rounded-md text-sm">
+            <div className="font-medium flex items-center gap-2">
+              <Mic className="w-4 h-4" />
+              Live Transcripts
+            </div>
+            <ul className="mt-1 text-xs space-y-2">
+              {statusDetails.transcripts.map((transcript: any, i: number) => (
+                <li key={i} className="flex flex-col">
+                  <span className="font-medium">{transcript.text}</span>
+                  <span className="text-purple-600 text-xs">
+                    {new Date(transcript.timestamp * 1000).toLocaleTimeString()}
+                  </span>
+                </li>
               ))}
             </ul>
           </div>
