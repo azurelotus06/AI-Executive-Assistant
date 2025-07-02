@@ -31,6 +31,7 @@ class RealTimeAudioHandler:
         self.processing_interval = 2.0  # max time between processing chunks
         self.gladia_client = None
         self.is_gladia_ready = False
+        self.input_websockets: List[WebSocket] = []
         self.output_websockets: List[WebSocket] = []
         self.sample_rate = 16000  # Default sample rate for audio processing
         self._gladia_initialization_lock = asyncio.Lock()
@@ -80,45 +81,15 @@ class RealTimeAudioHandler:
         """Handle incoming WebSocket connection from MeetingBaaS"""
         await websocket.accept()
         logger.info("WebSocket input connection accepted for real-time audio")
+        self.input_websockets.append(websocket)
         
         try:
-            # No Gladia initialization here - moved to webhook handler
-            if not self.is_gladia_ready:
-                logger.info("Gladia not initialized - waiting for webhook trigger")
-
-            while True:
-                message = await websocket.receive()
-                print("Websocket input message: ", list(message.keys()))
-                print("Websocket message: ", message)
-                
-                # if message.get("type") == "websocket.disconnect":
-                #     logger.info("WebSocket disconnected by client")
-                #     break
-                    
-                # if message.get("text"):
-                #     await self._handle_text_message(message["text"])
-                # elif message.get("bytes") and self.current_speaker:
-                #     await self._handle_audio_data(
-                #         self.current_speaker, 
-                #         message["bytes"]
-                #     )
-
+            if websocket.client_state == "disconnected":
+                if not await self._reconnect_websocket(websocket):
+                    logger.error(f"Error closing WebSocket: {e}")    
         except Exception as e:
             logger.error(f"WebSocket error: {e}")
-        finally:
-            try:
-                if websocket.client_state != "disconnected":
-                    await websocket.close()
-                    logger.info("WebSocket connection closed")
-                
-                # Clean up Gladia session if no more active connections
-                if self.gladia_client and len(self.output_websockets) == 0:
-                    await self.gladia_client.end_session()
-                    self.is_gladia_ready = False
-                    logger.info("Gladia session cleaned up")
-            except Exception as e:
-                logger.error(f"Error closing WebSocket: {e}")
-                
+            
     async def handle_websocket_output(self, websocket: WebSocket):
         """Handle incoming WebSocket connection from MeetingBaaS"""
         await websocket.accept()
@@ -307,27 +278,8 @@ class RealTimeAudioHandler:
                         await tts_service.queue_tts(
                             text=ai_response['response'],
                             voice_id=settings.tts_voice_id,
-                            websockets=self.output_websockets
+                            websockets=self.input_websockets
                         )
-                
-                # # Broadcast to all output WebSockets
-                # message = {
-                #     "type": "transcription",
-                #     "speaker_id": self.current_speaker,
-                #     "speaker_name": speaker_name,
-                #     "text": text,
-                #     "is_final": is_final,
-                #     "timestamp": datetime.now().isoformat()
-                # }
-                
-                # for ws in self.output_websockets:
-                #     try:
-                #         if ws.client_state != "disconnected":
-                #             await ws.send_json(message)
-                #     except Exception as e:
-                #         logger.error(f"Error sending transcription to WebSocket: {e}")
-                #         if ws in self.output_websockets:  # Check if still exists
-                #             self.output_websockets.remove(ws)
                     
         except Exception as e:
             logger.error(f"Error handling transcription: {e}")

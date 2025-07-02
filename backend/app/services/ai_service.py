@@ -23,44 +23,39 @@ class AIService:
         # Executive assistant persona and prompts
         self.system_prompt = self._build_system_prompt()
         
-    def _build_system_prompt(self) -> str:
-        """Build the system prompt for the AI assistant"""
-        return """You are Jarvis, an AI assistant participating in a Zoom meeting. Your role is to:
+    def _build_system_prompt(self, mode: str = "strategic advisor") -> str:
+        """Build the system prompt for the AI assistant based on role"""
+        role_prompts = {
+            "strategic advisor": """You are Jarvis, a Strategic Advisor AI. Provide concise (1-2 sentence) insights on:
+- Business strategy and competitive positioning
+- Market trends and opportunities
+- Risk assessment and mitigation
+- High-level decision impact analysis
+Focus on strategic implications, not operational details.""",
+            
+            "simulated cfo": """You are Jarvis, a Simulated CFO AI. Provide concise (1-2 sentence) insights on:
+- Financial implications of decisions
+- Cost-benefit analysis
+- Revenue opportunities
+- Budget and resource allocation
+- Financial risk assessment
+Focus strictly on financial perspectives."""
+        }
+        
+        base_prompt = f"""You are participating in a business meeting as {mode}. Follow these rules:
+1. Only speak when you have unique, valuable input
+2. Keep responses to 1-2 sentences maximum
+3. Focus on your specialized domain knowledge
+4. Respond in JSON format with:
+   - "should_speak": boolean
+   - "response": string (if speaking)
+   - "confidence": float (0-1)
+   - "reasoning": string
 
-1. **Listen Actively**: Analyze conversations in real-time and understand context, key points, and meeting dynamics.
-
-2. **Provide Strategic Insights**: Offer valuable, executive-level insights that add genuine value to the discussion. Focus on:
-   - Strategic implications of decisions being discussed
-   - Risk assessment and mitigation strategies
-   - Market opportunities and competitive advantages
-   - Process improvements and efficiency gains
-   - Key action items and follow-ups
-
-3. **Speak Naturally**: Only contribute when you have something genuinely valuable to add. Avoid:
-   - Interrupting active discussions
-   - Repeating what others have said
-   - Generic or obvious comments
-   - Speaking too frequently
-
-4. **Executive Communication Style**: 
-   - Be concise and impactful (1-2 sentences max)
-   - Use professional, confident language
-   - Focus on outcomes and actionable insights
-   - Speak with authority but remain collaborative
-
-5. **Timing Guidelines**:
-   - Wait for natural pauses in conversation
-   - Don't speak if someone just finished making a similar point
-   - Prioritize quality over quantity of contributions
-
-6. **Response Format**: 
-   Return JSON with:
-   - "should_speak": boolean (true only if you have valuable input)
-   - "response": string (your actual response, if should_speak is true)
-   - "confidence": float (0.0-1.0, how confident you are in the value of your response)
-   - "reasoning": string (brief explanation of why you chose to speak or not)
-
-Remember: Your goal is to be a valuable team member, not a chatty AI. Quality and timing matter more than frequency."""
+Current Role: {mode}
+{role_prompts.get(mode, role_prompts["strategic advisor"])}"""
+        
+        return base_prompt
 
     def set_paused(self, paused: bool):
         """Set pause status"""
@@ -136,6 +131,17 @@ Remember: Your goal is to be a valuable team member, not a chatty AI. Quality an
         Args:
             current_message: The current message to analyze
             context: List of previous messages for context
+            mode: The role mode (strategic advisor, simulated CFO)
+            transcript: Legacy parameter for backward compatibility
+            speaker: The speaker of the current message
+        """
+        # Update system prompt based on current mode
+        self.system_prompt = self._build_system_prompt(mode)
+        """Analyze conversation and determine if AI should respond
+        
+        Args:
+            current_message: The current message to analyze
+            context: List of previous messages for context
             mode: The mode of operation (strategic advisor, simulated CFO, etc.)
             transcript: Legacy parameter for backward compatibility
             speaker: The speaker of the current message
@@ -182,18 +188,21 @@ RECENT CONVERSATION CONTEXT:
 KEY TOPICS DETECTED: {', '.join(key_topics) if key_topics else 'None'}
 
 ANALYSIS TASK:
-Based on the current message and conversation context, determine if you should contribute to this meeting as an AI Executive Assistant. Consider:
+Based on the current message and conversation context, determine if you should contribute to this meeting as an AI {mode.replace('_', ' ').title()}. Consider:
 
-1. Is there a strategic insight you can provide?
-2. Are there risks or opportunities worth highlighting?
-3. Can you suggest actionable next steps?
-4. Is this a natural pause where input would be welcome?
-5. Would your contribution add genuine value or just be noise?
+1. Is there a {mode}-specific insight you can provide?
+2. Are there {mode}-relevant risks or opportunities worth highlighting?
+3. Can you suggest {mode}-appropriate actionable next steps?
+4. Is this a natural pause where {mode} input would be welcome?
+5. Would your {mode} contribution add genuine value or just be noise?
+
+Additional {mode}-specific considerations:
+{"- Focus on strategic implications, competitive positioning, and long-term impact" if mode == "strategic advisor" else "- Focus strictly on financial implications, cost-benefit analysis, and ROI"}
 
 Respond with JSON only, no additional text.
 """
 
-            # Call GPT-4 for analysis
+            # Call GPT-4 for analysis with strict token limit for concise responses
             response = await self.client.chat.completions.create(
                 model=settings.ai_model,
                 messages=[
@@ -201,7 +210,7 @@ Respond with JSON only, no additional text.
                     {"role": "user", "content": analysis_prompt}
                 ],
                 temperature=settings.ai_temperature,
-                max_tokens=settings.ai_max_tokens,
+                max_tokens=100,  # Strict limit for short responses
                 response_format={"type": "json_object"}
             )
             

@@ -3,6 +3,7 @@ import logging
 import httpx
 import base64
 from typing import Optional, Dict, Any, List
+from fastapi import WebSocket
 import io
 import json
 
@@ -181,7 +182,7 @@ class TTSService:
         
         return text.strip()
     
-    async def generate_executive_speech(self, text: str, urgency: str = "normal") -> Optional[bytes]:
+    async def generate_executive_speech(self, text: str, voice_id: str, urgency: str = "urgent") -> Optional[bytes]:
         """Generate speech optimized for executive communication"""
         try:
             # Preprocess text for better speech
@@ -208,7 +209,7 @@ class TTSService:
                 "voice_settings": voice_settings
             }
             
-            url = f"{self.base_url}/text-to-speech/{self.voice_id}"
+            url = f"{self.base_url}/text-to-speech/{voice_id}"
             response = await self.client.post(url, json=payload)
             response.raise_for_status()
             
@@ -244,14 +245,18 @@ class TTSService:
                 "error": str(e)
             }
 
-    async def queue_tts(self, text: str, voice_id: str, websockets: List[Any]) -> bool:
+    async def queue_tts(self, text: str, voice_id: str, websockets: List[WebSocket]) -> bool:
         """Queue text for TTS processing and send to WebSockets"""
         try:
+            print("Start: Queue text for TTS processing and send to WebSockets")
             if not text or not websockets:
+                logger.error(f"Error text: {text}, websockets: {websockets}")
                 return False
-                
+            
+            voice_id = voice_id or self.voice_id
             # Generate speech audio
-            audio_data = await self.generate_executive_speech(text)
+            audio_data = await self.generate_executive_speech(text, voice_id)
+            print(f"len(audio_data): {len(audio_data)}, len(text): {len(text)}")
             if not audio_data:
                 return False
                 
@@ -259,7 +264,7 @@ class TTSService:
             for ws in websockets:
                 try:
                     if ws.client_state != "disconnected":
-                        await ws.send_bytes(audio_data)
+                        await ws.send(audio_data)
                 except Exception as e:
                     logger.error(f"Error sending TTS audio to WebSocket: {e}")
                     continue
