@@ -127,7 +127,7 @@ Remember: Your goal is to be a valuable team member, not a chatty AI. Quality an
         self, 
         current_message: str = None,
         context: List[str] = None,
-        mode: str = "executive_assistant",
+        mode: str = "strategic advisor",
         transcript: str = None,
         speaker: str = "Participant"
     ) -> Optional[Dict[str, Any]]:
@@ -136,19 +136,20 @@ Remember: Your goal is to be a valuable team member, not a chatty AI. Quality an
         Args:
             current_message: The current message to analyze
             context: List of previous messages for context
-            mode: The mode of operation (executive_assistant, etc.)
+            mode: The mode of operation (strategic advisor, simulated CFO, etc.)
             transcript: Legacy parameter for backward compatibility
             speaker: The speaker of the current message
         """
         try:
+            print("Start to analyze conversation")
             if self.is_paused:
                 return None
-            
+            print("Handle both new and lagacy parameter formats.")
             # Handle both new and legacy parameter formats
             message_text = current_message or transcript
             if not message_text:
                 return None
-            
+            print("Add to conversation history")
             # Add to conversation history
             self._add_to_conversation_history(speaker, message_text)
             
@@ -163,11 +164,12 @@ Remember: Your goal is to be a valuable team member, not a chatty AI. Quality an
                 }
             
             # Build context from provided context or history
+            print("Build context from provided context or history")
             if context:
                 conversation_context = "\n".join(context)
             else:
                 conversation_context = self._build_conversation_context()
-            
+            print("_extract_key_topics")
             key_topics = self._extract_key_topics(message_text)
             
             # Prepare the analysis prompt
@@ -205,7 +207,7 @@ Respond with JSON only, no additional text.
             
             # Parse response
             ai_response = json.loads(response.choices[0].message.content)
-            
+            print(f"ai_response: {ai_response}")
             # Validate response structure
             required_keys = ["should_speak", "confidence"]
             if not all(key in ai_response for key in required_keys):

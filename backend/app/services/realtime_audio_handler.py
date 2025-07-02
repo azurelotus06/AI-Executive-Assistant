@@ -286,16 +286,18 @@ class RealTimeAudioHandler:
             print(f"[TRANSCRIPTION] {speaker_name}: {text}")  # Print to console
             speaker = self.speakers[speaker_name]
             if text:
-                speaker['transcripts'].append({
-                    'text': text,
-                    'timestamp': timestamp,
-                    'is_final': is_final
-                })
-                print("speaker['transcripts']: ", speaker['transcripts'])
                 if is_final:
+                    context = await self._get_recent_texts()
+                    speaker['transcripts'].append({
+                        'text': text,
+                        'timestamp': timestamp
+                    })
+                    print("speaker['transcripts']: ", speaker['transcripts'])
+                
                     # Analyze with AI service
                     ai_response = await ai_service.analyze_conversation(
-                        transcript=text,
+                        current_message=text,
+                        context=context,
                         speaker=speaker_name
                     )
                     logger.info(f"ai_response: {ai_response}")
@@ -329,7 +331,40 @@ class RealTimeAudioHandler:
                     
         except Exception as e:
             logger.error(f"Error handling transcription: {e}")
-
+    
+    async def _get_recent_texts(self) -> list[str]:
+        """Extract the 3 most recent transcription texts from all speakers.
+        
+        Returns:
+            List of the 3 most recent texts (or fewer if not available),
+            ordered from newest to oldest. Returns empty list if no transcripts.
+        """
+        all_transcripts = []
+        
+        try:
+            # Collect all transcripts from all speakers
+            for speaker_data in self.speakers.values():
+                # Ensure 'transcripts' exists and is a list
+                if 'transcripts' in speaker_data and isinstance(speaker_data['transcripts'], list):
+                    all_transcripts.extend(speaker_data['transcripts'])
+            
+            # Sort all transcripts by timestamp in descending order (newest first)
+            sorted_transcripts = sorted(
+                all_transcripts,
+                key=lambda x: x['timestamp'],
+                reverse=True
+            ) if all_transcripts else []
+            
+            # Extract the text from the 3 most recent transcripts
+            recent_texts = [t['text'] for t in sorted_transcripts[:3]]
+            
+            return recent_texts
+        
+        except Exception as e:
+            # Log the error if needed
+            # logger.error(f"Error getting recent texts: {e}")
+            return []
+    
     def _write_pcm_to_wav(self, pcm_bytes: bytes, wav_path: str, 
                          sample_rate: int = 16000, sample_width: int = 2, 
                          channels: int = 1):
