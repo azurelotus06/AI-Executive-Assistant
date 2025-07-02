@@ -318,9 +318,10 @@ class MeetingBaaSService:
                 
                 # Send websocket status update
                 from app.core.websocket_manager import manager
+                meeting_url = meeting.meeting_url if meeting else None  # Get URL before async context
                 await manager.send_status_update(status_code, {
                     "bot_id": bot_id,
-                    "meeting_url": meeting.meeting_url if meeting else None,
+                    "meeting_url": meeting_url,
                     "status_details": status_details,
                     "message": f"Status changed to {status_code}"
                 })
@@ -385,9 +386,10 @@ class MeetingBaaSService:
                 
                 # Send websocket completion
                 from app.core.websocket_manager import manager
+                meeting_url = meeting.meeting_url if meeting else None  # Get URL before async context
                 await manager.send_status_update("complete", {
                     "bot_id": bot_id,
-                    "meeting_url": meeting.meeting_url if meeting else None,
+                    "meeting_url": meeting_url,
                     "mp4_url": mp4_url,
                     "speakers": speakers,
                     "message": "Meeting completed successfully"
@@ -437,9 +439,10 @@ class MeetingBaaSService:
 
                 # Send websocket failure
                 from app.core.websocket_manager import manager
+                meeting_url = meeting.meeting_url if meeting else None  # Get URL before async context
                 await manager.send_status_update("failed", {
                     "bot_id": bot_id,
-                    "meeting_url": meeting.meeting_url if meeting else None,
+                    "meeting_url": meeting_url,
                     "error_code": error_code,
                     "error_details": error_details,
                     "message": message

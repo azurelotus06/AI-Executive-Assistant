@@ -35,6 +35,21 @@ class RealTimeAudioHandler:
         self.sample_rate = 16000  # Default sample rate for audio processing
         self._gladia_initialization_lock = asyncio.Lock()
         
+    async def _reconnect_websocket(self, websocket: WebSocket, max_retries: int = 3) -> bool:
+        """Attempt to reconnect a WebSocket with retries"""
+        for attempt in range(max_retries):
+            try:
+                if websocket.client_state == "disconnected":
+                    await websocket.accept()
+                    logger.info(f"WebSocket reconnected (attempt {attempt + 1})")
+                    return True
+                return False
+            except Exception as e:
+                logger.error(f"WebSocket reconnect attempt {attempt + 1} failed: {e}")
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(1 * (attempt + 1))  # Exponential backoff
+        return False
+
     async def initialize_gladia(self) -> bool:
         """Initialize Gladia client when webhook status is 'in_call_recording'"""
         async with self._gladia_initialization_lock:
@@ -120,31 +135,40 @@ class RealTimeAudioHandler:
                     return
 
             while True:
-                message = await websocket.receive()
-                print("Websocket output message: ", list(message.keys()))
-                print("self.current_speaker: ", self.current_speaker)
-                print("self.is_gladia_ready: ", self.is_gladia_ready)
-                
-                if message.get("type") == "websocket.disconnect":
-                    logger.info("WebSocket disconnected by client")
-                    break
+                try:
+                    message = await websocket.receive()
+                    print("Websocket output message: ", list(message.keys()))
+                    print("self.current_speaker: ", self.current_speaker)
+                    print("self.is_gladia_ready: ", self.is_gladia_ready)
                     
-                if message.get("text"):
-                    await self._handle_text_message(message["text"])
-                elif message.get("bytes") and self.is_gladia_ready:
-                    await self._handle_audio_data(
-                        message["bytes"]
-                    )
+                    if message.get("type") == "websocket.disconnect":
+                        logger.info("WebSocket disconnected by client")
+                        break
+                        
+                    if message.get("text"):
+                        await self._handle_text_message(message["text"])
+                    elif message.get("bytes") and self.is_gladia_ready:
+                        await self._handle_audio_data(
+                            message["bytes"]
+                        )
+
+                except Exception as e:
+                    logger.error(f"WebSocket receive error: {e}")
+                    if not await self._reconnect_websocket(websocket):
+                        break  # Failed to reconnect
 
         except Exception as e:
             logger.error(f"WebSocket error: {e}")
         finally:
             try:
+                if websocket in self.output_websockets:
+                    self.output_websockets.remove(websocket)
                 if websocket.client_state != "disconnected":
                     await websocket.close()
                     logger.info("WebSocket connection closed")
             except Exception as e:
-                logger.error(f"Error closing WebSocket: {e}")
+                if not await self._reconnect_websocket(websocket):
+                    logger.error(f"Error closing WebSocket: {e}")
 
     async def _handle_text_message(self, message_text: str):
         """Handle text messages containing speaker metadata"""
@@ -207,28 +231,7 @@ class RealTimeAudioHandler:
                 segment = bytes(speaker['buffer'])
                 speaker['buffer'] = bytearray()
                 
-                transcript = await self._process_audio_segment(segment)
-                print("transcript: ", transcript)
-                if transcript:
-                    speaker['transcripts'].append({
-                        'text': transcript,
-                        'timestamp': current_time
-                    })
-                    print("speaker['transcripts']: ", speaker['transcripts'])
-                    
-                    # Analyze with AI service
-                    ai_response = await ai_service.analyze_conversation(
-                        transcript=transcript,
-                        speaker='Unknown'
-                    )
-                    
-                    if ai_response and ai_response.get('should_speak'):
-                        # Queue TTS response
-                        await tts_service.queue_tts(
-                            text=ai_response['response'],
-                            voice_id=settings.tts_voice_id,
-                            websockets=self.output_websockets
-                        )
+                await self._process_audio_segment(segment)
 
         except Exception as e:
             logger.error(f"Error handling audio data: {e}")
@@ -240,67 +243,35 @@ class RealTimeAudioHandler:
                 logger.warning("Gladia not ready, skipping audio processing")
                 return None
                 
-            # # Convert to WAV if needed
-            # if audio_data[:4] != b'RIFF':
-            #     temp_path = None
-            #     try:
-            #         # Create temp file with explicit close
-            #         tmpfile = tempfile.NamedTemporaryFile(delete=False, suffix=".wav")
-            #         temp_path = tmpfile.name
-            #         tmpfile.close()  # Close immediately after creation
-                    
-            #         # Write WAV data
-            #         self._write_pcm_to_wav(audio_data, temp_path)
-                    
-            #         # Read with retry logic
-            #         max_retries = 3
-            #         for attempt in range(max_retries):
-            #             try:
-            #                 with open(temp_path, 'rb') as f:
-            #                     audio_data = f.read()
-            #                 break
-            #             except PermissionError as pe:
-            #                 if attempt == max_retries - 1:
-            #                     raise
-            #                 await asyncio.sleep(0.1 * (attempt + 1))
-                    
-            #     finally:
-            #         # Ensure cleanup
-            #         if temp_path and os.path.exists(temp_path):
-            #             try:
-            #                 os.remove(temp_path)
-            #             except PermissionError as pe:
-            #                 logger.warning(f"Could not delete temp file {temp_path}: {pe}")
-            #                 # Schedule delayed cleanup
-            #                 asyncio.create_task(self._delayed_file_cleanup(temp_path))
+            # Send to Gladia with retry logic
+            max_retries = 3
+            for attempt in range(max_retries):
+                success = await self.gladia_client.send_audio_chunk(audio_data)
+                print("Sent to Gladia")
+                if success:
+                    break
+                
+                logger.error(f"Failed to send audio to Gladia (attempt {attempt + 1})")
+                if attempt < max_retries - 1:
+                    # If we get error 4408 (no audio chunks received), reinitialize session
+                    if hasattr(self.gladia_client, 'last_error_code') and self.gladia_client.last_error_code == 4408:
+                        logger.info("Reinitializing Gladia session due to timeout")
+                        await self.gladia_client.end_session()
+                        self.is_gladia_ready = False
+                        if not await self.initialize_gladia():
+                            logger.error("Failed to reinitialize Gladia session")
+                            return None
+                    await asyncio.sleep(1 * (attempt + 1))  # Exponential backoff
             
-            # # Create event to wait for transcription
-            # transcription_event = asyncio.Event()
-            # transcription_result = None
-            
-            # # Temporary handler to capture result
-            # def temp_handler(text: str, is_final: bool):
-            #     nonlocal transcription_result
-            #     if is_final and text:
-            #         transcription_result = text
-            #         transcription_event.set()
-            
-            # # Add temporary handler
-            # original_handler = self.gladia_client.on_transcription
-            # self.gladia_client.on_transcription = temp_handler
-            
-            # Send to Gladia
-            success = await self.gladia_client.send_audio_chunk(audio_data)
-            print("Sent to Gladia")
             if not success:
-                logger.error("Failed to send audio to Gladia")
+                logger.error("All retries failed to send audio to Gladia")
                 return None
             
         except Exception as e:
             logger.error(f"Error processing audio segment: {e}")
             return None
             
-    async def _handle_transcription(self, text: str, is_final: bool):
+    async def _handle_transcription(self, text: str, timestamp: float, is_final: bool):
         """Handle transcription results from Gladia"""
         try:
             print("_handle_transcription text: ", text)
@@ -313,25 +284,48 @@ class RealTimeAudioHandler:
             
             logger.info(f"Transcription from {speaker_name} ({'final' if is_final else 'partial'}): {text}")
             print(f"[TRANSCRIPTION] {speaker_name}: {text}")  # Print to console
-            
-            # Broadcast to all output WebSockets
-            message = {
-                "type": "transcription",
-                "speaker_id": self.current_speaker,
-                "speaker_name": speaker_name,
-                "text": text,
-                "is_final": is_final,
-                "timestamp": datetime.now().isoformat()
-            }
-            
-            for ws in self.output_websockets:
-                try:
-                    if ws.client_state != "disconnected":
-                        await ws.send_json(message)
-                except Exception as e:
-                    logger.error(f"Error sending transcription to WebSocket: {e}")
-                    if ws in self.output_websockets:  # Check if still exists
-                        self.output_websockets.remove(ws)
+            speaker = self.speakers[speaker_name]
+            if text:
+                speaker['transcripts'].append({
+                    'text': text,
+                    'timestamp': timestamp,
+                    'is_final': is_final
+                })
+                print("speaker['transcripts']: ", speaker['transcripts'])
+                if is_final:
+                    # Analyze with AI service
+                    ai_response = await ai_service.analyze_conversation(
+                        transcript=text,
+                        speaker=speaker_name
+                    )
+                    logger.info(f"ai_response: {ai_response}")
+                    
+                    if ai_response and ai_response.get('should_speak'):
+                        # Queue TTS response
+                        await tts_service.queue_tts(
+                            text=ai_response['response'],
+                            voice_id=settings.tts_voice_id,
+                            websockets=self.output_websockets
+                        )
+                
+                # # Broadcast to all output WebSockets
+                # message = {
+                #     "type": "transcription",
+                #     "speaker_id": self.current_speaker,
+                #     "speaker_name": speaker_name,
+                #     "text": text,
+                #     "is_final": is_final,
+                #     "timestamp": datetime.now().isoformat()
+                # }
+                
+                # for ws in self.output_websockets:
+                #     try:
+                #         if ws.client_state != "disconnected":
+                #             await ws.send_json(message)
+                #     except Exception as e:
+                #         logger.error(f"Error sending transcription to WebSocket: {e}")
+                #         if ws in self.output_websockets:  # Check if still exists
+                #             self.output_websockets.remove(ws)
                     
         except Exception as e:
             logger.error(f"Error handling transcription: {e}")

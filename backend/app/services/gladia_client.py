@@ -3,6 +3,7 @@ import json
 import base64
 import asyncio
 import logging
+from datetime import datetime
 from typing import Optional, Callable, Awaitable, Union, Any
 import aiohttp
 import websockets
@@ -17,6 +18,7 @@ class GladiaClient:
         self.ws: Optional[WebSocketClientProtocol] = None  # WebSocket connection
         self.session_id: Optional[str] = None
         self.on_transcription_callback: Optional[Callable[[str, bool], Awaitable[None]]] = None
+        self.last_error_code: Optional[int] = None
         
     async def cleanup_existing_sessions(self) -> bool:
         """Attempt to cleanup any existing sessions"""
@@ -150,7 +152,12 @@ class GladiaClient:
         """Connect to Gladia's WebSocket for real-time transcription"""
         try:
             logger.info(f"Connecting to Gladia WebSocket at: {url}")
-            self.ws = await websockets.connect(url)
+            self.ws = await websockets.connect(
+                url,
+                ping_interval=300,  # Send ping every 300 seconds
+                ping_timeout=300,   # Wait 300 seconds for pong response
+                close_timeout=300   # Wait 300 seconds before closing
+            )
             logger.info(f"Successfully connected to Gladia WebSocket: {self.ws}")
             
             # Start listening for messages
@@ -173,6 +180,7 @@ class GladiaClient:
             # Set timeout for receiving messages (600 seconds)
             while True:
                 try:
+                    timestamp = datetime.now().timestamp()
                     message = await asyncio.wait_for(self.ws.recv(), timeout=600)
                     logger.info("Received WebSocket message")
                     logger.debug(f"Received WebSocket message: {message[:200]}...")  # Log first 200 chars
@@ -188,7 +196,7 @@ class GladiaClient:
                             logger.info(f"Received transcription (is_final={is_final}): {text}")
                             
                             if self.on_transcription_callback:
-                                await self.on_transcription_callback(text, is_final)
+                                await self.on_transcription_callback(text, timestamp, is_final)
                         else:
                             logger.warning("Received empty transcription")
                     else:
@@ -240,6 +248,7 @@ class GladiaClient:
         except Exception as e:
             logger.error(f"Error sending audio chunk to Gladia: {e}")
             if hasattr(e, 'code'):
+                self.last_error_code = e.code
                 logger.error(f"Error code: {e.code}")
             if hasattr(e, 'reason'):
                 logger.error(f"Error reason: {e.reason}")
@@ -252,7 +261,7 @@ class GladiaClient:
     async def end_session(self) -> bool:
         """End transcription session and wait for confirmation"""
         try:
-            if self.ws and not self.ws.closed:
+            if self.ws and not self.ws.close:
                 # Send stop recording message
                 await self.ws.send(json.dumps({"type": "stop_recording"}))
                 # Wait for graceful closure
