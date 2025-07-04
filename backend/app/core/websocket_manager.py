@@ -36,6 +36,7 @@ class WebSocketManager:
         """Send a message to a specific WebSocket connection"""
         try:
             await websocket.send_text(json.dumps(message))
+            logger.info(f"Sent personal message: {message}")
         except Exception as e:
             logger.error(f"Error sending personal message: {e}")
             self.disconnect(websocket)

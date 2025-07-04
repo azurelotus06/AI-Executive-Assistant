@@ -152,7 +152,7 @@ const WS_URL = 'ws://bold-chow-trivially.ngrok-free.app/ws';
 
 ### Audio Settings
 Adjust audio recording parameters in `src/hooks/useAudioRecorder.ts`:
-- Sample rate: 16000 Hz (default)
+- Sample rate: 32000 Hz (default)
 - Chunk duration: 100ms
 - Audio format: 16-bit PCM
 

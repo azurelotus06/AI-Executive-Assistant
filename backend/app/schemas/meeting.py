@@ -8,7 +8,7 @@ class JoinMeetingRequest(BaseModel):
     """Request model for joining a meeting"""
     meeting_url: str = Field(..., description="The meeting URL (Zoom, Teams, etc.)")
     bot_name: Optional[str] = Field(
-        "AI Executive Assistant", 
+        "Jarvis", 
         description="Name of the bot that will join the meeting"
     )
 

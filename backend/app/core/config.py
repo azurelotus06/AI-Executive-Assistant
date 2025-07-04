@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     async_database_url: str = Field(..., env="ASYNC_DATABASE_URL")
     
     # Audio Settings
-    audio_sample_rate: int = Field(16000, env="AUDIO_SAMPLE_RATE")
+    audio_sample_rate: int = Field(32000, env="AUDIO_SAMPLE_RATE")
     audio_chunk_duration: float = Field(1.0, env="AUDIO_CHUNK_DURATION")  # seconds
     audio_silence_threshold: float = Field(0.01, env="AUDIO_SILENCE_THRESHOLD")
     

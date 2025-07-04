@@ -6,8 +6,10 @@ from typing import Optional, Dict, Any, List
 from fastapi import WebSocket
 import io
 import json
+from pydub import AudioSegment
 
 from app.core.config import settings
+from app.core.websocket_manager import manager
 
 logger = logging.getLogger(__name__)
 
@@ -182,7 +184,7 @@ class TTSService:
         
         return text.strip()
     
-    async def generate_executive_speech(self, text: str, voice_id: str, urgency: str = "urgent") -> Optional[bytes]:
+    async def generate_executive_speech(self, text: str, voice_id: str, urgency: str = "middle") -> Optional[bytes]:
         """Generate speech optimized for executive communication"""
         try:
             # Preprocess text for better speech
@@ -213,7 +215,16 @@ class TTSService:
             response = await self.client.post(url, json=payload)
             response.raise_for_status()
             
-            return response.content
+            # Convert MP3 to raw PCM
+            try:
+                mp3_data = response.content
+                audio = AudioSegment.from_file(io.BytesIO(mp3_data), format="mp3")
+                raw_data = audio.set_frame_rate(32000).set_channels(1).raw_data
+                print(raw_data)
+                return raw_data
+            except Exception as e:
+                logger.error(f"Error converting audio to PCM: {e}")
+                return None
             
         except Exception as e:
             logger.error(f"Error generating executive speech: {e}")
@@ -246,35 +257,74 @@ class TTSService:
             }
 
     async def queue_tts(self, text: str, voice_id: str, websockets: List[WebSocket]) -> bool:
-        """Queue text for TTS processing and send to WebSockets"""
+        """Queue text for TTS processing and send raw binary audio to WebSockets"""
         try:
-            print("Start: Queue text for TTS processing and send to WebSockets")
             if not text or not websockets:
-                logger.error(f"Error text: {text}, websockets: {websockets}")
+                logger.error(f"Invalid TTS queue request - text: {text}, websockets: {websockets}")
                 return False
             
             voice_id = voice_id or self.voice_id
-            # Generate speech audio
-            audio_data = await self.generate_executive_speech(text, voice_id)
-            print(f"len(audio_data): {len(audio_data)}, len(text): {len(text)}")
+            logger.info(f"Generating TTS for text (length: {len(text)}) with voice: {voice_id}")
+            
+            # Generate speech audio and await the Promise
+            audio_data = await self.generate_executive_speech(text, voice_id, "urgent")
             if not audio_data:
+                logger.error("Failed to generate TTS audio data")
                 return False
                 
-            # Send to all connected WebSockets
+            if not isinstance(audio_data, bytes):
+                logger.error(f"Invalid audio data type: {type(audio_data)}, expected bytes")
+                return False
+                
+            logger.info(f"Generated TTS audio (size: {len(audio_data)} bytes)")
+            
+            # Send raw binary data to all connected WebSockets
+            success = True
             for ws in websockets:
                 try:
                     if ws.client_state != "disconnected":
-                        await ws.send(audio_data)
+                        await ws.send_bytes(audio_data)
+                        logger.debug(f"Sent audio to WebSocket {id(ws)}")
+                    else:
+                        logger.warning(f"WebSocket {id(ws)} is disconnected, skipping")
+                        success = False
                 except Exception as e:
-                    logger.error(f"Error sending TTS audio to WebSocket: {e}")
-                    continue
+                    logger.error(f"Error sending TTS audio to WebSocket {id(ws)}: {e}")
+                    success = False
                     
-            return True
+            return success
             
         except Exception as e:
-            logger.error(f"Error in TTS queue: {e}")
+            logger.error(f"Error in TTS queue processing: {str(e)}", exc_info=True)
             return False
     
+    async def save_audio_to_file(self, raw_data: bytes, file_path: str) -> Optional[str]:
+        """Save audio data to a local file
+        
+        Args:
+            raw_data: Raw audio bytes from TTS
+            file_path: Path to save the file to
+            
+        Returns:
+            str: Path to saved file if successful, None otherwise
+        """
+        try:
+            audio = AudioSegment(
+                data=raw_data,
+                sample_width=2,  # 16-bit = 2 bytes per sample
+                frame_rate=32000,  # Common sample rate (adjust if yours is different)
+                channels=1  # Stereo (1 for mono)
+            )
+
+            # Now export to MP3
+            audio.export(file_path, format="mp3")
+
+            logger.info(f"Saved audio to {file_path}")
+            return file_path
+        except Exception as e:
+            logger.error(f"Error saving audio file: {e}")
+            return None
+
     async def close(self):
         """Close the HTTP client"""
         try:
@@ -282,7 +332,7 @@ class TTSService:
             logger.info("TTS service client closed")
         except Exception as e:
             logger.error(f"Error closing TTS client: {e}")
-    
+
     def __del__(self):
         """Cleanup when object is destroyed"""
         try:

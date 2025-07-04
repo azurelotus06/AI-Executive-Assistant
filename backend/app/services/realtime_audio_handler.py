@@ -33,7 +33,7 @@ class RealTimeAudioHandler:
         self.is_gladia_ready = False
         self.input_websockets: List[WebSocket] = []
         self.output_websockets: List[WebSocket] = []
-        self.sample_rate = 16000  # Default sample rate for audio processing
+        self.sample_rate = 32000  # Default sample rate for audio processing
         self._gladia_initialization_lock = asyncio.Lock()
         
     async def _reconnect_websocket(self, websocket: WebSocket, max_retries: int = 3) -> bool:
@@ -278,7 +278,7 @@ class RealTimeAudioHandler:
                         await tts_service.queue_tts(
                             text=ai_response['response'],
                             voice_id=settings.tts_voice_id,
-                            websockets=self.input_websockets
+                            websockets=self.output_websockets
                         )
                     
         except Exception as e:
@@ -318,7 +318,7 @@ class RealTimeAudioHandler:
             return []
     
     def _write_pcm_to_wav(self, pcm_bytes: bytes, wav_path: str, 
-                         sample_rate: int = 16000, sample_width: int = 2, 
+                         sample_rate: int = 32000, sample_width: int = 2, 
                          channels: int = 1):
         """Convert PCM audio to WAV format"""
         try:

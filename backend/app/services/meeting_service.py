@@ -92,7 +92,7 @@ class MeetingBaaSService:
                 },
                 "streaming": {
                     "audio_frequency": "24khz",
-                    "input": f"{websocket_url}/input",
+                    "input": f"{websocket_url}/output",
                     "output": f"{websocket_url}/output"
                 },
                 "webhook_url": webhook_url
