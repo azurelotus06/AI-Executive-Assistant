@@ -50,15 +50,10 @@ app.include_router(ai.router, prefix="/api/ai", tags=["ai"])
 app.include_router(control.router, prefix="/api/control", tags=["control"])
 app.include_router(meeting.router, prefix="/api", tags=["meeting"])
 
-@app.websocket("/ws/meeting/input")
-async def meeting_audio_websocket_input(websocket: WebSocket):
-    """WebSocket input endpoint for MeetingBaaS audio streams"""
-    await audio_handler.handle_websocket_input(websocket)
-
-@app.websocket("/ws/meeting/output")
-async def meeting_audio_websocket_output(websocket: WebSocket):
+@app.websocket("/ws/meeting")
+async def meeting_audio_websocket(websocket: WebSocket):
     """WebSocket output endpoint for MeetingBaaS audio streams"""
-    await audio_handler.handle_websocket_output(websocket)
+    await audio_handler.handle_websocket(websocket)
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):

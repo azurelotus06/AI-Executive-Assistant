@@ -31,8 +31,7 @@ class RealTimeAudioHandler:
         self.processing_interval = 2.0  # max time between processing chunks
         self.gladia_client = None
         self.is_gladia_ready = False
-        self.input_websockets: List[WebSocket] = []
-        self.output_websockets: List[WebSocket] = []
+        self.websockets: List[WebSocket] = []
         self.sample_rate = 32000  # Default sample rate for audio processing
         self._gladia_initialization_lock = asyncio.Lock()
         
@@ -77,24 +76,11 @@ class RealTimeAudioHandler:
                 logger.error(f"Error initializing Gladia: {e}")
                 return False
 
-    async def handle_websocket_input(self, websocket: WebSocket):
-        """Handle incoming WebSocket connection from MeetingBaaS"""
-        await websocket.accept()
-        logger.info("WebSocket input connection accepted for real-time audio")
-        self.input_websockets.append(websocket)
-        
-        try:
-            if websocket.client_state == "disconnected":
-                if not await self._reconnect_websocket(websocket):
-                    logger.error(f"Error closing WebSocket: {e}")    
-        except Exception as e:
-            logger.error(f"WebSocket error: {e}")
-            
-    async def handle_websocket_output(self, websocket: WebSocket):
+    async def handle_websocket(self, websocket: WebSocket):
         """Handle incoming WebSocket connection from MeetingBaaS"""
         await websocket.accept()
         logger.info("WebSocket output connection accepted for real-time audio")
-        self.output_websockets.append(websocket)
+        self.websockets.append(websocket)
         
         try:
             # Ensure Gladia is initialized before processing audio
@@ -132,8 +118,8 @@ class RealTimeAudioHandler:
             logger.error(f"WebSocket error: {e}")
         finally:
             try:
-                if websocket in self.output_websockets:
-                    self.output_websockets.remove(websocket)
+                if websocket in self.websockets:
+                    self.websockets.remove(websocket)
                 if websocket.client_state != "disconnected":
                     await websocket.close()
                     logger.info("WebSocket connection closed")
@@ -278,7 +264,7 @@ class RealTimeAudioHandler:
                         await tts_service.queue_tts(
                             text=ai_response['response'],
                             voice_id=settings.tts_voice_id,
-                            websockets=self.output_websockets
+                            websockets=self.websockets
                         )
                     
         except Exception as e:

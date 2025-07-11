@@ -76,7 +76,6 @@ class MeetingBaaSService:
             print(webhook_url)
             print(websocket_url)
             print(settings.speech_to_text)
-            print(f"{websocket_url}/input")
             
             # Prepare bot configuration
             data = {
@@ -92,8 +91,8 @@ class MeetingBaaSService:
                 },
                 "streaming": {
                     "audio_frequency": "24khz",
-                    "input": f"{websocket_url}/output",
-                    "output": f"{websocket_url}/output"
+                    "input": websocket_url,
+                    "output": websocket_url
                 },
                 "webhook_url": webhook_url
             }
