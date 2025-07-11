@@ -1,0 +1,61 @@
+@startuml AI-Executive-Assistant-Architecture
+
+title AI Executive Assistant - System Architecture
+
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+
+package "FastAPI Application" {
+  [main.py] as MainApp
+  [API Routes] as Routes
+  [WebSocket Manager] as WSMgr
+}
+
+package "Core Services" {
+  [AudioProcessor] as AudioProc
+  [AIService] as AISvc
+  [TTSService] as TTSSvc
+}
+
+package "External Services" {
+  [OpenAI] as OpenAI
+  [Database] as DB
+  [TTS Service] as TTS
+}
+
+MainApp --> Routes : "routes HTTP requests"
+MainApp --> WSMgr : "handles real-time connections"
+
+Routes --> AudioProc : "POST /process-chunk"
+Routes --> AISvc : "POST /analyze"
+
+AudioProc --> OpenAI : "Gladia\n(speech-to-text)"
+AISvc --> OpenAI : "GPT API\n(analysis)"
+TTSSvc --> TTS : "Elevenlabs\n(text-to-speech)"
+
+AudioProc --> AISvc : "transcript"
+AISvc --> TTSSvc : "response text"
+TTSSvc --> WSMgr : "audio response"
+
+WSMgr --> AudioProc : "real-time audio"
+WSMgr --> AISvc : "transcript updates"
+
+MainApp --> DB : "data access"
+Routes --> DB : "data access"
+
+note right of AudioProc
+  - Handles audio processing
+  - Implements VAD
+  - Manages audio buffers
+end note
+
+note left of AISvc
+  - Maintains conversation history
+  - Determines response timing
+  - Role-based responses
+  - Confidence scoring
+end note
+
+@enduml
