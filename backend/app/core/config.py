@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     async_database_url: str = Field(..., env="ASYNC_DATABASE_URL")
     
     # Audio Settings
-    audio_sample_rate: int = Field(32000, env="AUDIO_SAMPLE_RATE")
+    audio_sample_rate: int = Field(16000, env="AUDIO_SAMPLE_RATE")
     audio_chunk_duration: float = Field(1.0, env="AUDIO_CHUNK_DURATION")  # seconds
     audio_silence_threshold: float = Field(0.01, env="AUDIO_SILENCE_THRESHOLD")
     
@@ -35,8 +35,8 @@ class Settings(BaseSettings):
     
     # TTS Settings
     tts_voice_id: str = Field("21m00Tcm4TlvDq8ikWAM", env="TTS_VOICE_ID")  # Default ElevenLabs voice
-    tts_stability: float = Field(0.75, env="TTS_STABILITY")
-    tts_similarity_boost: float = Field(0.75, env="TTS_SIMILARITY_BOOST")
+    tts_stability: float = Field(1, env="TTS_STABILITY")
+    tts_similarity_boost: float = Field(1, env="TTS_SIMILARITY_BOOST")
     
     # Application Settings
     app_host: str = Field("0.0.0.0", env="APP_HOST")

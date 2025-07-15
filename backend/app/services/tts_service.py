@@ -219,7 +219,7 @@ class TTSService:
             try:
                 mp3_data = response.content
                 audio = AudioSegment.from_file(io.BytesIO(mp3_data), format="mp3")
-                raw_data = audio.set_frame_rate(32000).set_channels(1).raw_data
+                raw_data = audio.set_frame_rate(24000).set_channels(1).raw_data
                 print(raw_data)
                 return raw_data
             except Exception as e:
@@ -312,7 +312,7 @@ class TTSService:
             audio = AudioSegment(
                 data=raw_data,
                 sample_width=2,  # 16-bit = 2 bytes per sample
-                frame_rate=32000,  # Common sample rate (adjust if yours is different)
+                frame_rate=24000,  # Common sample rate (adjust if yours is different)
                 channels=1  # Stereo (1 for mono)
             )
 

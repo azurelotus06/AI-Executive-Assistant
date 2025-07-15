@@ -36,7 +36,7 @@ export const useAudioRecorder = (
   const streamRef = useRef<MediaStream | null>(null);
 
   const {
-    sampleRate = 32000,
+    sampleRate = 16000,
     channelCount = 1,
     echoCancellation = true,
     noiseSuppression = true,

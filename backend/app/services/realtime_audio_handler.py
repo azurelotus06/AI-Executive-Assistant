@@ -32,7 +32,7 @@ class RealTimeAudioHandler:
         self.gladia_client = None
         self.is_gladia_ready = False
         self.websockets: List[WebSocket] = []
-        self.sample_rate = 32000  # Default sample rate for audio processing
+        self.sample_rate = 16000  # Default sample rate for audio processing
         self._gladia_initialization_lock = asyncio.Lock()
         
     async def _reconnect_websocket(self, websocket: WebSocket, max_retries: int = 3) -> bool:
@@ -183,7 +183,7 @@ class RealTimeAudioHandler:
             
             if (len(speaker['buffer']) > 0 and 
                 (time_since_last > self.silence_threshold or 
-                 len(speaker['buffer']) > self.sample_rate * 2)):  # Max 2 sec - 32000
+                 len(speaker['buffer']) > self.sample_rate * 2)):  # Max 2 sec - 16000
                 
                 segment = bytes(speaker['buffer'])
                 speaker['buffer'] = bytearray()
@@ -304,7 +304,7 @@ class RealTimeAudioHandler:
             return []
     
     def _write_pcm_to_wav(self, pcm_bytes: bytes, wav_path: str, 
-                         sample_rate: int = 32000, sample_width: int = 2, 
+                         sample_rate: int = 16000, sample_width: int = 2, 
                          channels: int = 1):
         """Convert PCM audio to WAV format"""
         try:

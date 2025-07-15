@@ -95,7 +95,7 @@ class GladiaClient:
             payload = {
                 "encoding": "wav/pcm",
                 "bit_depth": 16,
-                "sample_rate": 32000,
+                "sample_rate": 16000,
                 "channels": 1,
                 "model": "accurate",
                 "language_config": {
