@@ -1,6 +1,6 @@
 # Real-Time AI Executive Assistant for Zoom Meetings
 
-An intelligent AI assistant that actively participates in Zoom meetings by listening, analyzing conversations in real-time using GPT-4, and providing strategic insights via natural text-to-speech.
+An intelligent AI assistant that actively participates in Zoom meetings by listening, analyzing conversations in real-time using GPT-4/GPT-5, and providing strategic insights via natural text-to-speech.
 
 ## 🎯 Overview
 
