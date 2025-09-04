@@ -6,7 +6,7 @@ An intelligent AI assistant that actively participates in Zoom meetings by liste
 
 This project creates an AI-powered executive assistant that:
 - **Listens** to Zoom meetings in real-time
-- **Analyzes** conversations using GPT-4 for strategic insights
+- **Analyzes** conversations using GPT-4/GPT-5 for strategic insights
 - **Speaks** naturally using ElevenLabs TTS when appropriate
 - **Provides** executive-level insights and recommendations
 
